@@ -1,0 +1,15 @@
+version: '3.9'
+
+services:
+  examtopics-quiz:
+    build: .
+    container_name: examtopics-quiz
+    working_dir: /app
+    environment:
+      - FLASK_ENV=development
+    ports:
+      - '5012:5000'
+    volumes:
+      - ./app:/app
+      - ./data:/app/data
+    restart: unless-stopped

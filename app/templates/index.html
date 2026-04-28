@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Quiz Learning App - Select Project</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <style>
+        .modal {
+            display: none;
+            position: fixed;
+            z-index: 1000;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.8);
+        }
+        .modal-content {
+            background-color: #1a1a1a;
+            margin: 15% auto;
+            padding: 20px;
+            border: 2px solid #333;
+            width: 80%;
+            max-width: 400px;
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+        }
+        .modal-buttons {
+            display: flex;
+            gap: 10px;
+            justify-content: space-between;
+            flex-wrap: wrap;
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <h1>Quiz Learning App</h1>
+    </header>
+    <main>
+        <div class="projects-grid">
+            {% for project in projects %}
+            <div class="project-card">
+                <h2>{{ project.name }} <a href="{{ project.link }}" target="_blank">🔗</a> <a href="/search/{{ project.id }}" title="Search in this project">🔍</a></h2>
+                <p>{{ project.description }}</p>
+                <mark>{{ project.questions }} ({{project.question_count}}) questions | Progress: {{project.progress}}/{{project.question_count}}</mark>
+                <button class="btn btn-primary" onclick="checkProgress({{ project.id }}, {{ project.progress }})">
+                    Start Quiz
+                </button>
+            </div>
+            {% endfor %}
+        </div>
+    </main>
+    <footer>
+        <a href="/search" class="btn btn-primary">
+            🔍 Search Questions
+        </a>
+    </footer>
+    
+    <!-- Progress Confirmation Modal -->
+    <div id="progressModal" class="modal">
+        <div class="modal-content">
+            <h3>Existing Progress Found</h3>
+            <p>You have already answered some questions in this project. Would you like to continue or start fresh?</p>
+            <div class="modal-buttons">
+                <button class="btn btn-primary" onclick="closeModal()">Cancel</button>
+                <button class="btn btn-primary" onclick="startNew()">Start New</button>
+                <button class="btn btn-success" onclick="continueQuiz()">Continue</button>
+            </div>
+        </div>
+    </div>
+    
+    <script>
+        let currentProjectId = null;
+        
+        function checkProgress(projectId, progress) {
+            currentProjectId = projectId;
+            
+            if (progress > 0) {
+                document.getElementById('progressModal').style.display = 'block';
+            } else {
+                window.location.href = '/quiz/' + projectId;
+            }
+        }
+        
+        function closeModal() {
+            document.getElementById('progressModal').style.display = 'none';
+            currentProjectId = null;
+        }
+        
+        function continueQuiz() {
+            window.location.href = '/quiz/' + currentProjectId;
+        }
+        
+        async function startNew() {
+            try {
+                const response = await fetch('/api/reset_progress/' + currentProjectId, {
+                    method: 'POST'
+                });
+                
+                if (response.ok) {
+                    window.location.href = '/quiz/' + currentProjectId;
+                } else {
+                    alert('Error resetting progress. Please try again.');
+                }
+            } catch (error) {
+                console.error('Error:', error);
+                alert('Error resetting progress. Please try again.');
+            }
+        }
+        
+        // Close modal when clicking outside of it
+        window.onclick = function(event) {
+            const modal = document.getElementById('progressModal');
+            if (event.target == modal) {
+                closeModal();
+            }
+        }
+    </script>
+</body>
+</html>

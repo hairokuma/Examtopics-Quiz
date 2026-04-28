@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ project.name }} - Quiz</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+    <header>
+        <button class="toggle-sidebar-btn" id="toggleSidebar" title="Toggle question list">
+            ☰
+        </button>
+        <h1>{{ project.name }}</h1>
+        <div class="stats-bar" id="statsBar">
+            <div class="stat-item">
+                Progress:<span class="stat-value" id="progressStat">0/0</span>
+            </div>
+            <div class="stat-item">
+                Correct:<span class="stat-value correct" id="correctStat">0</span>
+            </div>
+            <div class="stat-item">
+                Marked:<span class="stat-value" id="markedStat">0</span>
+            </div>
+        </div>
+    </header>
+    
+    <div class="content-wrapper">
+        <nav class="question-list" id="questionList">
+            <a href="/">← Back to Projects</a>
+            <h3>Questions</h3>
+            <div id="questionNav"></div>
+        </nav>
+
+        <main class="question-content" id="questionContent">
+            <div class="loading">Loading questions...</div>
+        </main>
+    </div>
+
+    <footer id="quiz-footer">
+    </footer>
+
+    <script>
+        const projectId = {{ project.id }};
+    </script>
+    <script src="{{ url_for('static', filename='quiz.js') }}"></script>
+</body>
+</html>
