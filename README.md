@@ -1,113 +1,138 @@
 # Quiz Learning App
 
-A simple web-based quiz application that helps you learn and practice questions from different projects stored in the `examtopics.db` SQLite database.
+A web-based quiz application for practising exam questions scraped from ExamTopics and stored in an SQLite database.
 
 ## Features
 
-- 📚 **Multiple Projects**: Select from different exam preparation projects
-- ✅ **Interactive Quiz**: Select one or multiple answers for each question
-- 📊 **Progress Tracking**: Track answered questions, correct answers, and marked questions
-- 🔖 **Mark for Review**: Mark difficult questions for later review
-- 🎯 **Instant Feedback**: Get immediate feedback on your answers
-- 📈 **Statistics Dashboard**: View your progress and performance stats
+- Multiple exam projects with progress tracking
+- Interactive quiz with single and multi-answer support
+- Mark questions for review
+- Instant answer feedback with correct-answer highlighting
+- Statistics dashboard (progress, correct, marked)
+- Full-text search across all questions and answers
+- Integrated scraper UI to discover and import new exams
 
 ## Project Structure
 
 ```
-ET/
-├── app.py                 # Flask backend application
-├── examtopics.db          # SQLite database with questions
-├── requirements.txt       # Python dependencies
-├── templates/
-│   ├── index.html         # Project selection page
-│   └── quiz.html          # Quiz interface page
-└── static/
-    ├── style.css          # Styling for the application
-    └── quiz.js            # JavaScript for quiz functionality
+├── app/
+│   ├── app.py                 # Flask backend
+│   ├── requirements.txt
+│   ├── Dockerfile
+│   ├── data/
+│   │   └── examtopics.db      # SQLite database
+│   ├── static/
+│   │   ├── style.css          # Shared styles (layout, modal, quiz)
+│   │   ├── search.css         # Search page styles
+│   │   ├── scraper.css        # Scraper page styles
+│   │   ├── utils.js           # Shared utilities (image processing, escaping)
+│   │   ├── quiz.js            # Quiz page logic
+│   │   ├── index.js           # Home page logic
+│   │   ├── search.js          # Search page logic
+│   │   └── scraper.js         # Scraper page logic
+│   └── templates/
+│       ├── index.html         # Project selection
+│       ├── quiz.html          # Quiz interface
+│       ├── search.html        # Search interface
+│       └── scraper.html       # Scraper management
+└── config/
+    ├── init.sql               # Database seed data
+    ├── scraper.py             # Standalone scraper script
+    ├── sort_urls.py           # URL organiser utility
+    └── getURLbyPublisher.py   # URL discovery utility
 ```
 
 ## Database Schema
 
-The application uses the following tables from `examtopics.db`:
-
-- **projects**: Contains exam projects with name, description, and question count
-- **question_new**: Contains questions with answers, correct answer keys, and user progress
+- **projects** — exam projects (name, description, question count, link)
+- **questions** — imported questions with answers, correct keys, and user progress
+- **questions_scraped** — staging table for scraped questions before import
+- **discovered_urls** — URLs collected during scraper discovery phase
+- **publishers** — publisher entries (e.g. microsoft, databricks)
+- **scrape_jobs** — background job status and log for the scraper UI
 
 ## Installation
 
-1. **Install Python dependencies:**
-   ```bash
-   pip install -r requirements.txt
-   ```
+```bash
+pip install -r app/requirements.txt
+```
 
-2. **Ensure the database file exists:**
-   Make sure `examtopics.db` is in the same directory as `app.py`
+## Running
 
-## Running the Application
+```bash
+python app/app.py
+# open http://localhost:5000
+```
 
-1. **Start the Flask server:**
-   ```bash
-   cd /mnt/c/Users/fdoelling_ailio/Data/ET && source venv/bin/activate
-   python app.py
-   ```
+Or with Docker:
 
-2. **Open your web browser and navigate to:**
-   ```
-   http://localhost:5000
-   ```
+```bash
+docker compose up
+# open http://localhost:5012
+```
 
-3. **Select a project** from the main page to start the quiz
+Read logs: `docker logs examtopics-quiz`
 
 ## How to Use
 
-1. **Select a Project**: On the home page, choose a project you want to practice
-2. **Answer Questions**: 
-   - Read the question carefully
-   - Select one or more answer options by checking the boxes
-   - Click "Submit Answer" to check your response
-3. **Navigate**: 
-   - Use "Previous" and "Next" buttons to move between questions
-   - Click on question numbers in the sidebar for quick navigation
-4. **Mark Questions**: Click "Mark for Review" to flag difficult questions
-5. **Track Progress**: View your statistics at the top of the quiz page
+1. **Select a project** on the home page → start or continue a quiz
+2. **Answer questions** — select one or more options, click Submit
+3. **Navigate** with Previous / Next or the sidebar question list
+4. **Mark** difficult questions with the Mark for Review button
+5. **Search** across all questions from the home page or within a project
 
-## Features Explained
+## Question States
 
-### Question States
-- **Green**: Correctly answered
-- **Red**: Incorrectly answered
-- **Yellow bookmark**: Marked for review
-
-### Statistics
-- **Progress**: Shows how many questions you've answered out of total
-- **Correct**: Number of correctly answered questions
-- **Marked**: Number of questions marked for review
+| Colour | Meaning |
+|--------|---------|
+| Green  | Correctly answered |
+| Red    | Incorrectly answered |
+| Yellow dot | Marked for review |
 
 ## API Endpoints
 
-- `GET /` - Home page with project selection
-- `GET /quiz/<project_id>` - Quiz interface for a specific project
-- `GET /api/questions/<project_id>` - Get all questions for a project
-- `POST /api/submit_answer` - Submit an answer and get feedback
-- `POST /api/toggle_mark/<question_id>` - Mark/unmark a question
-- `GET /api/stats/<project_id>` - Get statistics for a project
+### Quiz
+| Method | Path | Description |
+|--------|------|-------------|
+| GET | `/` | Home page |
+| GET | `/quiz/<project_id>` | Quiz for a project |
+| GET | `/search[/<project_id>]` | Search page |
+| GET | `/api/questions/<project_id>` | All questions for a project |
+| POST | `/api/submit_answer` | Submit answer, get feedback |
+| POST | `/api/toggle_mark/<question_id>` | Toggle mark flag |
+| GET | `/api/stats/<project_id>` | Progress statistics |
+| POST | `/api/reset_progress/<project_id>` | Reset all progress |
+| GET | `/api/search` | Full-text search (`?q=`, `?project_id=`, `?exclude_case_study=`) |
 
-## Technologies Used
+### Scraper
+| Method | Path | Description |
+|--------|------|-------------|
+| GET | `/scraper` | Scraper UI |
+| GET | `/api/scraper/publishers` | List publishers |
+| POST | `/api/scraper/publishers` | Add publisher |
+| GET | `/api/scraper/exams/<publisher>` | List exams for a publisher |
+| POST | `/api/scraper/start_discovery` | Start URL discovery job |
+| POST | `/api/scraper/start_scrape` | Start question scrape job |
+| GET | `/api/scraper/stream/<job_id>` | SSE stream for job progress |
+| POST | `/api/scraper/import/<project_id>` | Import staged questions into quiz |
+| POST | `/api/scraper/create_project` | Create a new project |
+| POST | `/api/scraper/fetch_project_info` | Fetch metadata from ExamTopics |
 
-- **Backend**: Flask (Python)
-- **Database**: SQLite
-- **Frontend**: HTML5, CSS3, JavaScript (Vanilla)
-- **Styling**: Custom CSS with responsive design
+## Scraper Workflow
 
-## Notes
+1. Open `/scraper` in the app
+2. Add a publisher (e.g. `microsoft`) and click **Discover URLs** — this finds all discussion links for that publisher
+3. Once discovery is done, select an exam and click **Create Project** to add it to the quiz
+4. Click **Scrape Questions** to fetch and stage question content
+5. Click **Import to Quiz** to move staged questions into the live quiz
 
-- All question progress is automatically saved to the database
-- You can revisit questions at any time
-- The application supports multiple-choice questions with one or more correct answers
-- Works on desktop and mobile devices
+The scraper runs as a background job with a live progress bar and log. All steps are re-runnable.
+
+## Technologies
+
+- **Backend**: Flask (Python), SQLite, BeautifulSoup, requests
+- **Frontend**: HTML5, CSS3, Vanilla JavaScript
 
 ## License
 
-This is a learning tool for personal use.
-✅
-⬜
+Personal learning tool.

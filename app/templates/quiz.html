@@ -12,6 +12,7 @@
             ☰
         </button>
         <h1>{{ project.name }}</h1>
+        <a href="/" class="header-back-link">← Projects</a>
         <div class="stats-bar" id="statsBar">
             <div class="stat-item">
                 Progress:<span class="stat-value" id="progressStat">0/0</span>
@@ -24,11 +25,15 @@
             </div>
         </div>
     </header>
-    
+
     <div class="content-wrapper">
-        <nav class="question-list" id="questionList">
-            <a href="/">← Back to Projects</a>
+        <nav id="questionList">
             <h3>Questions</h3>
+            <div class="nav-filter-bar">
+                <button class="nav-filter-btn active" data-filter="all" onclick="setNavFilter('all')">All</button>
+                <button class="nav-filter-btn" data-filter="incorrect" onclick="setNavFilter('incorrect')">Incorrect</button>
+                <button class="nav-filter-btn" data-filter="marked" onclick="setNavFilter('marked')">Marked</button>
+            </div>
             <div id="questionNav"></div>
         </nav>
 
@@ -40,9 +45,8 @@
     <footer id="quiz-footer">
     </footer>
 
-    <script>
-        const projectId = {{ project.id }};
-    </script>
+    <script>const projectId = {{ project.id }};</script>
+    <script src="{{ url_for('static', filename='utils.js') }}"></script>
     <script src="{{ url_for('static', filename='quiz.js') }}"></script>
 </body>
 </html>
