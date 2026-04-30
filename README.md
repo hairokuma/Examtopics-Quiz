@@ -130,6 +130,11 @@ Read logs: `docker logs examtopics-quiz`
 
 The scraper runs as a background job with a live progress bar and log. All steps are re-runnable.
 
+**Note: The scraper can only fetch questions that are publicly accessible on ExamTopics. Some exams may have restricted access.**
+
+Most exams do not have all questions available for scraping. If you want all questions for an exam in the Quiz App, you need to purchase the exam on ExamTopics and add the questions manually to the database using, for example, DB Browser for SQLite.
+
+
 ## Technologies
 
 - **Backend**: Flask (Python), SQLite, BeautifulSoup, requests
