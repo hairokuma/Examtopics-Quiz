@@ -928,6 +928,16 @@ def get_job_status(job_id):
         return jsonify({'error': 'Job not found'}), 404
     return jsonify(job)
 
+@app.route('/api/scraper/running_jobs')
+def get_running_jobs():
+    conn = get_db_connection()
+    jobs = conn.execute(
+        "SELECT id, job_type, publisher, exam_name, total, processed, success_count, fail_count "
+        "FROM scrape_jobs WHERE status = 'running' ORDER BY created_at DESC"
+    ).fetchall()
+    conn.close()
+    return jsonify([dict(j) for j in jobs])
+
 @app.route('/api/scraper/stream/<job_id>')
 def stream_job(job_id):
     def generate():

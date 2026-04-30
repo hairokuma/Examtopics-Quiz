@@ -50,11 +50,13 @@ async function loadExams(publisher) {
     const p = cachedPublishers.find(x => x.name === publisher);
     const hasUrls = p && p.url_count > 0;
 
+    const isDiscovering = activeJobInfo && activeJobInfo.job_type === 'url_discovery';
+    const discoverLabel = isDiscovering ? 'Discovering...' : (hasUrls ? '↻ Re-discover URLs' : '+ Discover URLs');
     document.getElementById('examContent').innerHTML = `
         <div style="padding:16px;border-bottom:1px solid #333;display:flex;align-items:center;gap:12px;">
             <span style="font-size:16px;font-weight:500;text-transform:capitalize;">${escapeHtml(publisher)}</span>
-            <button class="btn-sm primary" id="discoverBtn">
-                ${hasUrls ? '↻ Re-discover URLs' : '+ Discover URLs'}
+            <button class="btn-sm primary" id="discoverBtn" ${isDiscovering ? 'disabled' : ''}>
+                ${discoverLabel}
             </button>
             ${hasUrls ? `<span style="font-size:12px;color:#666;">${p.url_count} URLs · ${p.exam_count} exams</span>` : ''}
         </div>
@@ -134,6 +136,7 @@ function examCard(publisher, e) {
 // ─── URL Discovery ────────────────────────────────────────────────────
 
 async function startDiscovery(publisher) {
+    if (activeJobInfo && activeJobInfo.job_type === 'url_discovery') return;
     try {
         const resp = await fetch('/api/scraper/start_discovery', {
             method: 'POST',
@@ -141,7 +144,7 @@ async function startDiscovery(publisher) {
             body: JSON.stringify({publisher, delay: 1.5})
         });
         const {job_id} = await resp.json();
-        startProgressStream(job_id, `Discovering ${publisher} URLs`, async () => {
+        startProgressStream(job_id, 'url_discovery', publisher, `Discovering ${publisher} URLs`, async () => {
             await loadPublishers();
             selectPublisher(publisher);
         });
@@ -160,7 +163,7 @@ async function startScrape(publisher, examName, projectId) {
             body: JSON.stringify({publisher, exam_name: examName, project_id: projectId, delay: 1.0})
         });
         const {job_id} = await resp.json();
-        startProgressStream(job_id, `Scraping ${examName}`, () => loadExams(publisher));
+        startProgressStream(job_id, 'question_scrape', publisher, `Scraping ${examName}`, () => loadExams(publisher));
     } catch (e) {
         alert('Failed to start scrape: ' + e.message);
     }
@@ -180,9 +183,13 @@ async function importQuestions(projectId, publisher, examName) {
 // ─── Progress Stream ──────────────────────────────────────────────────
 
 let activeEventSource = null;
+let activeJobInfo = null; // {job_id, job_type, publisher}
 
-function startProgressStream(job_id, label, onComplete) {
+function startProgressStream(job_id, job_type, publisher, label, onComplete) {
     if (activeEventSource) activeEventSource.close();
+
+    activeJobInfo = {job_id, job_type, publisher};
+    _refreshDiscoverButton();
 
     showProgress(label);
     document.getElementById('logBox').innerHTML = '';
@@ -194,6 +201,8 @@ function startProgressStream(job_id, label, onComplete) {
         if (data.status === 'completed' || data.status === 'failed') {
             activeEventSource.close();
             activeEventSource = null;
+            activeJobInfo = null;
+            _refreshDiscoverButton();
             const statusText = data.status === 'completed' ? 'Done' : 'Failed';
             document.getElementById('progressLabel').textContent = `${label} — ${statusText}`;
             setTimeout(() => {
@@ -205,7 +214,22 @@ function startProgressStream(job_id, label, onComplete) {
     activeEventSource.onerror = () => {
         if (activeEventSource) activeEventSource.close();
         activeEventSource = null;
+        activeJobInfo = null;
+        _refreshDiscoverButton();
     };
+}
+
+function _refreshDiscoverButton() {
+    const btn = document.getElementById('discoverBtn');
+    if (!btn) return;
+    const discovering = activeJobInfo && activeJobInfo.job_type === 'url_discovery';
+    btn.disabled = discovering;
+    if (discovering) {
+        btn.textContent = 'Discovering...';
+    } else {
+        const p = cachedPublishers.find(x => x.name === currentPublisher);
+        btn.textContent = p && p.url_count ? '↻ Re-discover URLs' : '+ Discover URLs';
+    }
 }
 
 function showProgress(label) {
@@ -350,8 +374,27 @@ async function addPublisher() {
 
 // ─── Init ─────────────────────────────────────────────────────────────
 
+async function checkRunningJobs() {
+    try {
+        const resp = await fetch('/api/scraper/running_jobs');
+        const jobs = await resp.json();
+        if (!jobs.length) return;
+        const job = jobs[0];
+        const label = job.job_type === 'url_discovery'
+            ? `Discovering ${job.publisher} URLs`
+            : `Scraping ${job.exam_name}`;
+        const onComplete = job.job_type === 'url_discovery'
+            ? async () => { await loadPublishers(); if (job.publisher) selectPublisher(job.publisher); }
+            : () => { if (job.publisher) loadExams(job.publisher); };
+        startProgressStream(job.id, job.job_type, job.publisher, label, onComplete);
+    } catch (e) {
+        // silently ignore if check fails
+    }
+}
+
 window.onclick = (e) => {
     if (e.target === document.getElementById('createModal')) closeModal();
 };
 
 loadPublishers();
+checkRunningJobs();
