@@ -250,13 +250,14 @@ function toggleLog() {
 // ─── Create Project Modal ─────────────────────────────────────────────
 
 function openCreateModal(publisher, examName) {
+    const p = cachedPublishers.find(x => x.name === publisher);
     pendingPublisher = publisher;
     pendingExamName = examName;
     document.getElementById('modalExamName').textContent = examName;
-    document.getElementById('projectLink').value = '';
-    document.getElementById('projectName').value = examName;
+    document.getElementById('projectLink').value = `https://www.examtopics.com/${publisher}/${examName}/view/`;
+    document.getElementById('projectName').value = `${publisher} ${examName}`;
     document.getElementById('projectDescription').value = '';
-    document.getElementById('projectQuestions').value = '';
+    document.getElementById('projectQuestions').value = p.url_count || '';
     document.getElementById('projectLastUpdated').value = '';
     document.getElementById('createModal').classList.add('open');
 }
