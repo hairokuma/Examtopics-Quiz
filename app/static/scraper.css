@@ -65,6 +65,9 @@ nav .item.active .pub-meta { color: #555; }
     padding: 10px 16px;
     flex-direction: column;
 }
+#progressBar > * {
+    width: 100%;
+}
 
 .progress-top {
     display: flex;

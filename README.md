@@ -2,6 +2,8 @@
 
 A web-based quiz application for practising exam questions scraped from ExamTopics and stored in an SQLite database.
 
+demo: https://examtopics-quiz.ddns.net/
+
 ## Features
 
 - Multiple exam projects with progress tracking
