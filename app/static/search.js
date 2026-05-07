@@ -3,6 +3,7 @@ let specificSearch = false;
 let excludeCaseStudy = false;
 const searchInput = document.getElementById('searchInput');
 const searchResults = document.getElementById('searchResults');
+let focusModeActive = false;
 
 searchInput.addEventListener('input', (e) => {
     clearTimeout(searchTimeout);
@@ -14,6 +15,12 @@ searchInput.addEventListener('input', (e) => {
     searchTimeout = setTimeout(() => performSearch(query), 300);
 });
 
+function focusMode() {
+    // hide header and result-header
+    focusModeActive = true;
+    document.querySelector('header').style.display = 'none';
+    document.querySelectorAll('.result-header').forEach(el => el.style.display = 'none');
+}
 function toggleSpecificSearch(event) {
     specificSearch = !specificSearch;
     event.target.textContent = specificSearch ? '✅' : '⬜';
@@ -92,7 +99,7 @@ function displayResults(results, query) {
         );
         html += `
         <div class="search-result-item">
-          <div class="result-header">
+          <div class="result-header" style="display: ${focusModeActive ? 'none' : 'block'}">
               <div class="result-meta">
                   <span class="result-project">${result.project_name}</span>
                   Topic ${result.topic_id} - Question ${result.question_id}

@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -7,24 +8,28 @@
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
     <link rel="icon" type="image/png" href="{{ url_for('static', filename='favicon.png') }}">
 </head>
+
 <body>
     <header>
         <h1>Quiz Learning App</h1>
     </header>
     <main>
-        <div class="grid">
-            {% for project in projects %}
-            <div class="card">
-                <h2>{{ project.name }} <a href="{{ project.link }}" target="_blank">🔗</a> <a href="/search/{{ project.id }}" title="Search in this project">🔍</a></h2>
-                <p>{{ project.description }}</p>
-                <mark>{{project.question_count}} imported · {{ project.questions or '?' }} on ExamTopics | Progress: {{project.progress}}/{{project.question_count}}</mark>
-                <button class="btn btn-primary" onclick="checkProgress({{ project.id }}, {{ project.progress }})">
-                    {{ 'Continue Quiz' if project.progress > 0 else 'Start Quiz' }}
-                </button>
+        <section>
+            <div class="grid">
+                {% for project in projects %}
+                <div class="card">
+                    <h2>{{ project.name }} <a href="{{ project.link }}" target="_blank">🔗</a> <a
+                            href="/search/{{ project.id }}" title="Search in this project">🔍</a></h2>
+                    <p>{{ project.description }}</p>
+                    <mark>{{project.question_count}} imported · {{ project.questions or '?' }} on ExamTopics | Progress:
+                        {{project.progress}}/{{project.question_count}}</mark>
+                    <button class="btn btn-primary" onclick="checkProgress({{ project.id }}, {{ project.progress }})">
+                        {{ 'Continue Quiz' if project.progress > 0 else 'Start Quiz' }}
+                    </button>
+                </div>
+                {% endfor %}
             </div>
-            {% endfor %}
-        </div>
-
+        </section>
     </main>
     <footer>
         <a href="/search" class="btn btn-primary">
@@ -36,18 +41,17 @@
     </footer>
 
     <!-- Progress Confirmation Modal -->
-    <div id="progressModal" class="modal">
-        <div class="modal-content">
-            <h3>Existing Progress Found</h3>
-            <p>You have already answered some questions in this project. Would you like to continue or start fresh?</p>
-            <div class="modal-buttons">
-                <button class="btn btn-primary" onclick="closeModal()">Cancel</button>
-                <button class="btn btn-primary" onclick="startNew()">Start New</button>
-                <button class="btn btn-success" onclick="continueQuiz()">Continue</button>
-            </div>
+    <dialog id="progressModal">
+        <h3>Existing Progress Found</h3>
+        <p>You have already answered some questions in this project. Would you like to continue or start fresh?</p>
+        <div class="modal-actions">
+            <button class="btn-sm" onclick="closeModal()">Cancel</button>
+            <button class="btn-sm" onclick="startNew()">Start New</button>
+            <button class="btn-sm primary" onclick="continueQuiz()">Continue</button>
         </div>
-    </div>
+    </dialog>
 
     <script src="{{ url_for('static', filename='index.js') }}"></script>
 </body>
+
 </html>

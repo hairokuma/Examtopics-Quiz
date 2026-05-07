@@ -16,7 +16,7 @@ function getFilteredIndices() {
 
 function setNavFilter(filter) {
     navFilter = filter;
-    document.querySelectorAll('.nav-filter-btn').forEach(btn => {
+    document.querySelectorAll('.nav-buttons button').forEach(btn => {
         btn.classList.toggle('active', btn.dataset.filter === filter);
     });
     renderQuestionNav();
@@ -34,15 +34,10 @@ function updateUrl(questionId) {
     window.history.pushState({ questionId }, '', newUrl);
 }
 
-// Load questions on page load
 document.addEventListener('DOMContentLoaded', () => {
     loadQuestions();
     updateStats();
-    initToggleSidebar();
-    checkScreenSize();
-    window.addEventListener('resize', checkScreenSize);
-    
-    // Handle browser back/forward buttons
+
     window.addEventListener('popstate', (event) => {
         if (event.state && event.state.questionId) {
             const index = questions.findIndex(q => q.id === event.state.questionId);
@@ -53,37 +48,6 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 });
 
-// Check screen size and hide sidebar on mobile
-function checkScreenSize() {
-    const questionList = document.getElementById('questionList');
-    const toggleBtn = document.getElementById('toggleSidebar');
-    
-    if (questionList && toggleBtn) {
-        if (window.innerWidth <= 768) {
-            questionList.classList.add('hidden');
-            toggleBtn.classList.add('sidebar-hidden');
-            toggleBtn.textContent = '☰';
-        } else {
-            questionList.classList.remove('hidden');
-            toggleBtn.classList.remove('sidebar-hidden');
-            toggleBtn.textContent = '✕';
-        }
-    }
-}
-
-// Toggle sidebar functionality
-function initToggleSidebar() {
-    const toggleBtn = document.getElementById('toggleSidebar');
-    const questionList = document.getElementById('questionList');
-
-    if (toggleBtn && questionList) {
-        toggleBtn.addEventListener('click', () => {
-            questionList.classList.toggle('hidden');
-            toggleBtn.classList.toggle('sidebar-hidden');
-            toggleBtn.textContent = questionList.classList.contains('hidden') ? '☰' : '✕';
-        });
-    }
-}
 
 async function loadQuestions() {
     try {
@@ -130,10 +94,12 @@ function renderQuestionNav() {
 
         const navItem = document.createElement('div');
         navItem.className = 'item';
-        const preview = question.question_text.length > 30
-            ? question.question_text.substring(0, 30) + '…'
+        const navText = document.createElement('p');
+        const preview = question.question_text.length > 300
+            ? question.question_text.substring(0, 300) + '…'
             : question.question_text;
-        navItem.textContent = `T${question.topic_id}-Q${question.question_id} ${preview}`;
+        navText.textContent = `T${question.topic_id}-Q${question.question_id} ${preview}`;
+        navItem.appendChild(navText);
 
         if (question.is_correct === 1) {
             navItem.classList.add('correct');

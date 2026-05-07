@@ -3,14 +3,14 @@ let currentProjectId = null;
 function checkProgress(projectId, progress) {
     currentProjectId = projectId;
     if (progress > 0) {
-        document.getElementById('progressModal').classList.add('open');
+        document.getElementById('progressModal').showModal();
     } else {
         window.location.href = '/quiz/' + projectId;
     }
 }
 
 function closeModal() {
-    document.getElementById('progressModal').classList.remove('open');
+    document.getElementById('progressModal').close();
     currentProjectId = null;
 }
 
@@ -27,12 +27,12 @@ async function startNew() {
             alert('Error resetting progress. Please try again.');
         }
     } catch (error) {
-        console.error('Error:', error);
         alert('Error resetting progress. Please try again.');
     }
 }
 
-window.onclick = function(event) {
-    const modal = document.getElementById('progressModal');
-    if (event.target === modal) closeModal();
-};
+document.addEventListener('DOMContentLoaded', () => {
+    document.getElementById('progressModal').addEventListener('click', e => {
+        if (e.target === e.currentTarget) closeModal();
+    });
+});

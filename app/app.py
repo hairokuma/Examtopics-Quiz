@@ -457,20 +457,37 @@ def _run_scrape_questions(job_id, project_id, exam_name, publisher, delay):
 
             time.sleep(delay)
 
-        # Update project question count from scraped staging table
+        now = datetime.now().isoformat()
         conn = get_db_connection()
+        scraped = conn.execute(
+            'SELECT * FROM questions_scraped WHERE project_id = ?', (project_id,)
+        ).fetchall()
+        imported = 0
+        for q in scraped:
+            if not conn.execute(
+                'SELECT id FROM questions WHERE project_id = ? AND source_url = ?',
+                (project_id, q['source_url'])
+            ).fetchone():
+                conn.execute('''
+                    INSERT INTO questions
+                    (project_id, topic_id, question_id, question_text, answer_object,
+                     correct_answer_keys, is_marked, created_at, updated_at, source_url)
+                    VALUES (?, ?, ?, ?, ?, ?, 0, ?, ?, ?)
+                ''', (q['project_id'], q['topic_id'], q['question_id'], q['question_text'],
+                      q['answer_object'], q['correct_answer_keys'], now, now, q['source_url']))
+                imported += 1
         count = conn.execute(
-            'SELECT COUNT(*) FROM questions_scraped WHERE project_id = ?', (project_id,)
+            'SELECT COUNT(*) FROM questions WHERE project_id = ?', (project_id,)
         ).fetchone()[0]
         conn.execute(
             'UPDATE projects SET questions = ?, updated_at = ? WHERE id = ?',
-            (count, datetime.now().isoformat(), project_id)
+            (count, now, project_id)
         )
         conn.commit()
         conn.close()
 
         _update_job(job_id, status='completed')
-        _log_job(job_id, f'Done! {success} scraped, {fail} failed. Project has {count} staged questions.')
+        _log_job(job_id, f'Done! {success} scraped, {fail} failed. {imported} imported ({count} total in quiz).')
 
     except Exception as e:
         _update_job(job_id, status='failed')
@@ -908,10 +925,8 @@ def start_scrape():
     exam_name = data.get('exam_name', '').strip()
     publisher = data.get('publisher', '').strip()
     delay = float(data.get('delay', 1.0))
-
     if not all([project_id, exam_name, publisher]):
         return jsonify({'error': 'project_id, exam_name, publisher required'}), 400
-
     job_id = str(uuid.uuid4())
     _create_job(job_id, 'question_scrape', publisher=publisher, project_id=project_id, exam_name=exam_name)
     threading.Thread(
@@ -964,39 +979,6 @@ def stream_job(job_id):
         headers={'Cache-Control': 'no-cache', 'X-Accel-Buffering': 'no'}
     )
 
-@app.route('/api/scraper/import/<int:project_id>', methods=['POST'])
-def import_questions(project_id):
-    conn = get_db_connection()
-    if not conn.execute('SELECT id FROM projects WHERE id = ?', (project_id,)).fetchone():
-        conn.close()
-        return jsonify({'error': 'Project not found'}), 404
-
-    scraped = conn.execute(
-        'SELECT * FROM questions_scraped WHERE project_id = ?', (project_id,)
-    ).fetchall()
-
-    imported = skipped = 0
-    now = datetime.now().isoformat()
-
-    for q in scraped:
-        if conn.execute(
-            'SELECT id FROM questions WHERE project_id = ? AND source_url = ?',
-            (project_id, q['source_url'])
-        ).fetchone():
-            skipped += 1
-        else:
-            conn.execute('''
-                INSERT INTO questions
-                (project_id, topic_id, question_id, question_text, answer_object,
-                 correct_answer_keys, is_marked, created_at, updated_at, source_url)
-                VALUES (?, ?, ?, ?, ?, ?, 0, ?, ?, ?)
-            ''', (q['project_id'], q['topic_id'], q['question_id'], q['question_text'],
-                  q['answer_object'], q['correct_answer_keys'], now, now, q['source_url']))
-            imported += 1
-
-    conn.commit()
-    conn.close()
-    return jsonify({'imported': imported, 'skipped': skipped})
 
 if __name__ == '__main__':
     app.run(debug=os.getenv('FLASK_DEBUG', 'false').lower() == 'true', host='0.0.0.0', port=5000)

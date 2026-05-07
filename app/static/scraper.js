@@ -27,10 +27,10 @@ function renderPublishers() {
     container.innerHTML = cachedPublishers.map(p => `
         <div class="item ${p.name === currentPublisher ? 'active' : ''}"
              data-publisher="${escapeHtml(p.name)}">
-            <div class="pub-name">${escapeHtml(p.name)}</div>
-            <div class="pub-meta">
+            <p>${escapeHtml(p.name)}</p>
+            <span>
                 ${p.url_count ? `${p.exam_count} exams · ${p.url_count} URLs` : 'Not discovered'}
-            </div>
+            </span>
         </div>
     `).join('');
     container.querySelectorAll('.item').forEach(el => {
@@ -42,55 +42,46 @@ function selectPublisher(name) {
     currentPublisher = name;
     renderPublishers();
     loadExams(name);
+    _refreshDiscoverPublisherBtn();
 }
 
 // ─── Exams ────────────────────────────────────────────────────────────
 
 async function loadExams(publisher) {
-    const p = cachedPublishers.find(x => x.name === publisher);
-    const hasUrls = p && p.url_count > 0;
-
-    const isDiscovering = activeJobInfo && activeJobInfo.job_type === 'url_discovery';
-    const discoverLabel = isDiscovering ? 'Discovering...' : (hasUrls ? '↻ Re-discover URLs' : '+ Discover URLs');
-    document.getElementById('examContent').innerHTML = `
-        <div style="padding:16px;border-bottom:1px solid #333;display:flex;align-items:center;gap:12px;">
-            <span style="font-size:16px;font-weight:500;text-transform:capitalize;">${escapeHtml(publisher)}</span>
-            <button class="btn-sm primary" id="discoverBtn" ${isDiscovering ? 'disabled' : ''}>
-                ${discoverLabel}
-            </button>
-            ${hasUrls ? `<span style="font-size:12px;color:#666;">${p.url_count} URLs · ${p.exam_count} exams</span>` : ''}
-        </div>
-        ${hasUrls ? '<div id="examGrid" style="padding-bottom:60px;"><div class="placeholder">Loading exams...</div></div>'
-                  : '<div class="placeholder" style="margin-top:40px;">No URLs discovered yet. Click "Discover URLs" to start.</div>'}
-    `;
-
-    document.getElementById('discoverBtn')?.addEventListener('click', () => startDiscovery(publisher));
-
-    if (!hasUrls) return;
-
     try {
         const resp = await fetch(`/api/scraper/exams/${publisher}`);
         const exams = await resp.json();
         renderExams(publisher, exams);
     } catch (e) {
-        document.getElementById('examGrid').innerHTML =
+        document.getElementById('examPanel').innerHTML =
             '<div class="placeholder error">Failed to load exams</div>';
     }
 }
 
 function renderExams(publisher, exams) {
-    const grid = document.getElementById('examGrid');
+    const grid = document.getElementById('examPanel');
     if (!exams.length) {
-        grid.innerHTML = '<div class="placeholder">No exams found</div>';
+        const p = cachedPublishers.find(x => x.name === publisher);
+        const hasUrls = p && p.url_count > 0;
+
+        const isDiscovering = activeJobInfo && activeJobInfo.job_type === 'url_discovery';
+        const discoverLabel = isDiscovering ? 'Discovering...' : (hasUrls ? '↻ Re-discover URLs' : '+ Discover URLs');
+        grid.innerHTML = `<div class="placeholder">No exams found
+        <button class="btn primary" id="discoverBtn" ${isDiscovering ? 'disabled' : ''}>
+        ${discoverLabel}
+        </button>
+        </div>
+        `;
+        document.getElementById('discoverBtn')?.addEventListener('click', () => startDiscovery(publisher));
+
         return;
     }
     grid.innerHTML = `<div class="grid">${exams.map(e => examCard(publisher, e)).join('')}</div>`;
     grid.querySelectorAll('[data-action]').forEach(el => {
         el.addEventListener('click', () => {
-            const {action, publisher: pub, exam, projectId} = el.dataset;
+            const { action, publisher: pub, exam, projectId } = el.dataset;
             if (action === 'create') openCreateModal(pub, exam);
             else if (action === 'scrape') startScrape(pub, exam, parseInt(projectId));
-            else if (action === 'import') importQuestions(parseInt(projectId), pub, exam);
         });
     });
 }
@@ -98,36 +89,23 @@ function renderExams(publisher, exams) {
 function examCard(publisher, e) {
     const hasProject = !!e.project_id;
     const allScraped = e.scraped_url_count >= e.url_count;
-    const hasImported = e.imported_question_count > 0;
     const pubAttr = escapeHtml(publisher);
     const examAttr = escapeHtml(e.exam_name);
 
     return `
         <div class="card" id="exam-${examAttr}">
-            <h3>${escapeHtml(e.exam_name)}</h3>
-            <div class="card-meta">
-                <span>${e.url_count} URLs</span>
-                ${e.scraped_url_count > 0 ? `<span class="${allScraped ? 'ok' : ''}">${e.scraped_url_count} scraped</span>` : ''}
-                ${hasProject ? `<span style="color:#aaa;">${escapeHtml(e.project_name)}</span>` : ''}
-            </div>
-            ${hasProject ? `
-                <div class="card-meta">
-                    <span>${e.scraped_question_count} staged</span>
-                    ${e.imported_question_count > 0 ? `<span class="ok">${e.imported_question_count} in quiz</span>` : ''}
-                </div>` : ''}
-            <div class="card-actions">
+            <h2>${escapeHtml(e.exam_name)}</h2>
+            <p>${e.url_count} URLs${hasProject ? ` · ${escapeHtml(e.project_name)}` : ''}</p>
+            ${hasProject && e.imported_question_count > 0 ? `
+                <mark>
+                    <span class="ok">${e.imported_question_count} in quiz</span>
+                </mark>` : ''}
                 ${!hasProject
-                    ? `<button class="btn-sm primary" data-action="create" data-publisher="${pubAttr}" data-exam="${examAttr}">Create Project</button>`
-                    : `<button class="btn-sm primary" data-action="scrape" data-publisher="${pubAttr}" data-exam="${examAttr}" data-project-id="${e.project_id}">
-                           ${e.scraped_question_count > 0 ? '↻ Re-scrape' : 'Scrape Questions'}
+            ? `<button class="btn-sm primary" data-action="create" data-publisher="${pubAttr}" data-exam="${examAttr}">Create Project</button>`
+            : `<button class="btn-sm primary" data-action="scrape" data-publisher="${pubAttr}" data-exam="${examAttr}" data-project-id="${e.project_id}">
+                           ${e.imported_question_count > 0 ? '↻ Re-scrape' : 'Scrape Questions'}
                        </button>`
-                }
-                ${hasProject && e.scraped_question_count > 0
-                    ? `<button class="btn-sm" data-action="import" data-project-id="${e.project_id}" data-publisher="${pubAttr}" data-exam="${examAttr}">
-                           ${hasImported ? '↻ Re-import' : 'Import to Quiz'}
-                       </button>`
-                    : ''}
-            </div>
+        }
         </div>
     `;
 }
@@ -135,15 +113,27 @@ function examCard(publisher, e) {
 
 // ─── URL Discovery ────────────────────────────────────────────────────
 
+function discoverPublisher() {
+    if (!currentPublisher) return;
+    startDiscovery(currentPublisher);
+}
+
+function _refreshDiscoverPublisherBtn() {
+    const btn = document.getElementById('discoverPublisherBtn');
+    if (!btn) return;
+    const busy = !!(activeJobInfo);
+    btn.disabled = busy || !currentPublisher;
+}
+
 async function startDiscovery(publisher) {
     if (activeJobInfo && activeJobInfo.job_type === 'url_discovery') return;
     try {
         const resp = await fetch('/api/scraper/start_discovery', {
             method: 'POST',
-            headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({publisher, delay: 1.5})
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ publisher, delay: 1.5 })
         });
-        const {job_id} = await resp.json();
+        const { job_id } = await resp.json();
         startProgressStream(job_id, 'url_discovery', publisher, `Discovering ${publisher} URLs`, async () => {
             await loadPublishers();
             selectPublisher(publisher);
@@ -159,24 +149,13 @@ async function startScrape(publisher, examName, projectId) {
     try {
         const resp = await fetch('/api/scraper/start_scrape', {
             method: 'POST',
-            headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({publisher, exam_name: examName, project_id: projectId, delay: 1.0})
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ publisher, exam_name: examName, project_id: projectId, delay: 1.0 })
         });
-        const {job_id} = await resp.json();
+        const { job_id } = await resp.json();
         startProgressStream(job_id, 'question_scrape', publisher, `Scraping ${examName}`, () => loadExams(publisher));
     } catch (e) {
         alert('Failed to start scrape: ' + e.message);
-    }
-}
-
-async function importQuestions(projectId, publisher, examName) {
-    try {
-        const resp = await fetch(`/api/scraper/import/${projectId}`, {method: 'POST'});
-        const result = await resp.json();
-        alert(`Import complete: ${result.imported} imported, ${result.skipped} already existed`);
-        loadExams(publisher);
-    } catch (e) {
-        alert('Import failed: ' + e.message);
     }
 }
 
@@ -188,8 +167,9 @@ let activeJobInfo = null; // {job_id, job_type, publisher}
 function startProgressStream(job_id, job_type, publisher, label, onComplete) {
     if (activeEventSource) activeEventSource.close();
 
-    activeJobInfo = {job_id, job_type, publisher};
+    activeJobInfo = { job_id, job_type, publisher };
     _refreshDiscoverButton();
+    _refreshDiscoverPublisherBtn();
 
     showProgress(label);
     document.getElementById('logBox').innerHTML = '';
@@ -203,6 +183,7 @@ function startProgressStream(job_id, job_type, publisher, label, onComplete) {
             activeEventSource = null;
             activeJobInfo = null;
             _refreshDiscoverButton();
+            _refreshDiscoverPublisherBtn();
             const statusText = data.status === 'completed' ? 'Done' : 'Failed';
             document.getElementById('progressLabel').textContent = `${label} — ${statusText}`;
             setTimeout(() => {
@@ -216,6 +197,7 @@ function startProgressStream(job_id, job_type, publisher, label, onComplete) {
         activeEventSource = null;
         activeJobInfo = null;
         _refreshDiscoverButton();
+        _refreshDiscoverPublisherBtn();
     };
 }
 
@@ -283,11 +265,11 @@ function openCreateModal(publisher, examName) {
     document.getElementById('projectDescription').value = '';
     document.getElementById('projectQuestions').value = p.url_count || '';
     document.getElementById('projectLastUpdated').value = '';
-    document.getElementById('createModal').classList.add('open');
+    document.getElementById('createModal').showModal();
 }
 
 function closeModal() {
-    document.getElementById('createModal').classList.remove('open');
+    document.getElementById('createModal').close();
 }
 
 async function fetchProjectInfo() {
@@ -299,8 +281,8 @@ async function fetchProjectInfo() {
     try {
         const resp = await fetch('/api/scraper/fetch_project_info', {
             method: 'POST',
-            headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({link})
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ link })
         });
         const info = await resp.json();
         if (info.question_count) document.getElementById('projectQuestions').value = info.question_count;
@@ -322,7 +304,7 @@ async function submitCreateProject() {
     try {
         const resp = await fetch('/api/scraper/create_project', {
             method: 'POST',
-            headers: {'Content-Type': 'application/json'},
+            headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
                 name,
                 link: document.getElementById('projectLink').value.trim(),
@@ -346,10 +328,13 @@ async function submitCreateProject() {
 // ─── Add Custom Publisher ─────────────────────────────────────────────
 
 function toggleAddPublisher() {
-    const form = document.getElementById('addPublisherForm');
-    const visible = form.style.display !== 'none';
-    form.style.display = visible ? 'none' : 'block';
-    if (!visible) document.getElementById('publisherUrlInput').focus();
+    const dialog = document.getElementById('addPublisherDialog');
+    if (dialog.open) {
+        dialog.close();
+    } else {
+        dialog.showModal();
+        document.getElementById('publisherUrlInput').focus();
+    }
 }
 
 async function addPublisher() {
@@ -360,12 +345,12 @@ async function addPublisher() {
     if (!name) { alert('Could not parse publisher name from input'); return; }
 
     document.getElementById('publisherUrlInput').value = '';
-    toggleAddPublisher();
+    document.getElementById('addPublisherDialog').close();
 
     await fetch('/api/scraper/publishers', {
         method: 'POST',
-        headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({name})
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name })
     });
 
     await loadPublishers();
@@ -392,9 +377,12 @@ async function checkRunningJobs() {
     }
 }
 
-window.onclick = (e) => {
-    if (e.target === document.getElementById('createModal')) closeModal();
-};
+document.addEventListener('DOMContentLoaded', () => {
+    document.getElementById('createModal').addEventListener('click', e => {
+        if (e.target === e.currentTarget) closeModal();
+    });
 
-loadPublishers();
-checkRunningJobs();
+
+    loadPublishers();
+    checkRunningJobs();
+});

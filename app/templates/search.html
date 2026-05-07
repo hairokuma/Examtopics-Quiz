@@ -5,12 +5,12 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Search Questions - Quiz Learning App</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
-    <link rel="stylesheet" href="{{ url_for('static', filename='search.css') }}">
 </head>
 <body>
     <header>
+        <button title="Focus mode" onclick="focusMode()"></button>
         <h1>Search Questions</h1>
-        <a href="/" class="header-back-link">← Projects</a>
+        <button title="Back to projects" onclick="window.location.href='/'">←</button>
     </header>
     <footer>
         <div class="search-bar">
@@ -22,11 +22,13 @@
         </div>
     </footer>
     <main>
-        <div id="searchResults" class="search-results">
-            <div class="search-info">
-                Type at least 3 characters to start searching
+        <section>
+            <div id="searchResults" class="search-results">
+                <div class="search-info">
+                    Type at least 3 characters to start searching
+                </div>
             </div>
-        </div>
+        </section>
     </main>
 
     <script>const PROJECT_ID = {{ project.id if project else 'null' }};</script>

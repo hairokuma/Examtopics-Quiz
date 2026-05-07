@@ -6,34 +6,23 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Scraper - Quiz Learning App</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
-    <link rel="stylesheet" href="{{ url_for('static', filename='scraper.css') }}">
 </head>
 
 <body>
     <header>
+        <button id="toggleSidebar" title="Toggle question list">☰</button>
         <h1>Scraper</h1>
-        <a href="/" class="header-back-link">← Projects</a>
+        <button title="Back to projects" onclick="window.location.href='/'">←</button>
     </header>
 
-    <div class="content-wrapper">
+    <main>
         <!-- Publisher Sidebar -->
         <nav id="publisherPanel">
-            <div class="panel-header">
-                Publishers
-                <div class="panel-header-actions">
-                    <button class="btn-sm" onclick="window.open('https://www.examtopics.com/discussions/', '_blank')" title="Find publishers">🔍</button>
-                    <button class="btn-sm" onclick="toggleAddPublisher()" title="Add publisher">+</button>
-                    <button class="btn-sm" onclick="loadPublishers()" title="Reload">↻</button>
-                </div>
-            </div>
-            <div id="addPublisherForm" style="display:none;">
-                <input type="text" id="publisherUrlInput"
-                    style="width:100%;background:#000;border:1px solid #444;color:#fff;padding:5px 7px;font-size:12px;font-family:inherit;"
-                    placeholder="URL or name (e.g. sap)" onkeydown="if(event.key==='Enter')addPublisher()">
-                <div class="add-form-actions">
-                    <button class="btn-sm primary" onclick="addPublisher()">Add</button>
-                    <button class="btn-sm" onclick="toggleAddPublisher()">✕</button>
-                </div>
+            <h3>Publishers</h3>
+            <div class="nav-buttons">
+                <button onclick="window.open('https://www.examtopics.com/discussions/', '_blank')" title="Find publishers">🔍</button>
+                <button onclick="toggleAddPublisher()" title="Add publisher">+</button>
+                <button id="discoverPublisherBtn" onclick="discoverPublisher()" title="Discover publisher" disabled>↻</button>
             </div>
             <div id="publisherItems">
                 <div class="placeholder">Loading...</div>
@@ -41,15 +30,15 @@
         </nav>
 
         <!-- Main Exam Panel -->
-        <main id="examPanel">
+        <section id="examPanel">
             <div id="examContent">
                 <div class="placeholder">Select a publisher to see available exams</div>
             </div>
-        </main>
-    </div>
+        </section>
+    </main>
 
     <!-- Progress Footer -->
-    <footer id="progressBar">
+    <footer id="progressBar" style="display: none;">
         <div class="progress-top">
             <span class="progress-label" id="progressLabel">Running...</span>
             <div class="progress-track">
@@ -61,41 +50,53 @@
         <div id="logBox"></div>
     </footer>
 
-    <!-- Create Project Modal -->
-    <div class="modal" id="createModal">
-        <div class="modal-box">
-            <h3>Create Project — <span id="modalExamName"></span></h3>
-            <div class="form-row">
-                <label>ExamTopics Link</label>
-                <div class="link-row">
-                    <input type="url" id="projectLink" placeholder="https://examtopics.com/exams/...">
-                    <button class="btn-sm primary" onclick="fetchProjectInfo()" id="fetchInfoBtn">Fetch</button>
-                </div>
-            </div>
-            <div class="form-row">
-                <label>Project Name</label>
-                <input type="text" id="projectName" placeholder="Microsoft AZ-104 Azure Administrator">
-            </div>
-            <div class="form-row">
-                <label>Description</label>
-                <textarea id="projectDescription" placeholder="Short description..."></textarea>
-            </div>
-            <div class="form-row-group">
-                <div class="form-row">
-                    <label>Question Count</label>
-                    <input type="number" id="projectQuestions" placeholder="0">
-                </div>
-                <div class="form-row">
-                    <label>Last Updated</label>
-                    <input type="text" id="projectLastUpdated" placeholder="Jan. 5, 2026">
-                </div>
-            </div>
-            <div class="modal-actions">
-                <button class="btn-sm" onclick="closeModal()">Cancel</button>
-                <button class="btn-sm primary" onclick="submitCreateProject()">Create Project</button>
+    <!-- Add Publisher Dialog -->
+    <dialog id="addPublisherDialog">
+        <h3>Add Publisher</h3>
+        <div class="form-row">
+            <label>URL or slug</label>
+            <input type="text" id="publisherUrlInput" placeholder="URL or name (e.g. sap)"
+                   onkeydown="if(event.key==='Enter') addPublisher()">
+        </div>
+        <div class="modal-actions">
+            <button class="btn-sm" onclick="document.getElementById('addPublisherDialog').close()">Cancel</button>
+            <button class="btn-sm primary" onclick="addPublisher()">Add</button>
+        </div>
+    </dialog>
+
+    <!-- Create Project Dialog -->
+    <dialog id="createModal">
+        <h3>Create Project — <span id="modalExamName"></span></h3>
+        <div class="form-row">
+            <label>ExamTopics Link</label>
+            <div class="link-row">
+                <input type="url" id="projectLink" placeholder="https://examtopics.com/exams/...">
+                <button class="btn-sm primary" onclick="fetchProjectInfo()" id="fetchInfoBtn">Fetch</button>
             </div>
         </div>
-    </div>
+        <div class="form-row">
+            <label>Project Name</label>
+            <input type="text" id="projectName" placeholder="Microsoft AZ-104 Azure Administrator">
+        </div>
+        <div class="form-row">
+            <label>Description</label>
+            <textarea id="projectDescription" placeholder="Short description..."></textarea>
+        </div>
+        <div class="form-row-group">
+            <div class="form-row">
+                <label>Question Count</label>
+                <input type="number" id="projectQuestions" placeholder="0">
+            </div>
+            <div class="form-row">
+                <label>Last Updated</label>
+                <input type="text" id="projectLastUpdated" placeholder="Jan. 5, 2026">
+            </div>
+        </div>
+        <div class="modal-actions">
+            <button class="btn-sm" onclick="closeModal()">Cancel</button>
+            <button class="btn-sm primary" onclick="submitCreateProject()">Create Project</button>
+        </div>
+    </dialog>
 
     <script src="{{ url_for('static', filename='utils.js') }}"></script>
     <script src="{{ url_for('static', filename='scraper.js') }}"></script>

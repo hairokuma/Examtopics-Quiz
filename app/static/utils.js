@@ -1,3 +1,28 @@
+function initToggleSidebar() {
+    const toggleBtn = document.getElementById('toggleSidebar');
+    const nav = document.querySelector('main > nav');
+    if (!toggleBtn || !nav) return;
+
+    const syncIcon = () => {
+        toggleBtn.textContent = nav.classList.contains('hidden') ? '☰' : '✕';
+    };
+
+    const applyScreenSize = () => {
+        nav.classList.toggle('hidden', window.innerWidth <= 768);
+        syncIcon();
+    };
+
+    toggleBtn.addEventListener('click', () => {
+        nav.classList.toggle('hidden');
+        syncIcon();
+    });
+
+    applyScreenSize();
+    window.addEventListener('resize', applyScreenSize);
+}
+
+document.addEventListener('DOMContentLoaded', initToggleSidebar);
+
 function processTextWithImages(text) {
     if (!text) return '';
     const imageUrlPattern = /(https?:\/\/[^\s<>"]+?\.(jpg|jpeg|png|gif|bmp|webp|svg)(\?[^\s<>"]*)?)/gi;

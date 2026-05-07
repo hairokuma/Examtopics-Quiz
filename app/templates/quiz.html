@@ -8,39 +8,37 @@
 </head>
 <body>
     <header>
-        <button class="toggle-sidebar-btn" id="toggleSidebar" title="Toggle question list">
-            ☰
-        </button>
+        <button id="toggleSidebar" title="Toggle question list">☰</button>
         <h1>{{ project.name }}</h1>
-        <a href="/" class="header-back-link">← Projects</a>
-        <div class="stats-bar" id="statsBar">
-            <div class="stat-item">
-                Progress:<span class="stat-value" id="progressStat">0/0</span>
+        <div class="stats">
+            <div class="item">
+                Progress:<mark id="progressStat">0/0</mark>
             </div>
-            <div class="stat-item">
-                Correct:<span class="stat-value correct" id="correctStat">0</span>
+            <div class="item">
+                Correct:<mark id="correctStat">0</mark>
             </div>
-            <div class="stat-item">
-                Marked:<span class="stat-value" id="markedStat">0</span>
+            <div class="item">
+                Marked:<mark id="markedStat">0</mark>
             </div>
         </div>
+        <button title="Back to projects" onclick="window.location.href='/'">←</button>
     </header>
 
-    <div class="content-wrapper">
+    <main>
         <nav id="questionList">
             <h3>Questions</h3>
-            <div class="nav-filter-bar">
-                <button class="nav-filter-btn active" data-filter="all" onclick="setNavFilter('all')">All</button>
-                <button class="nav-filter-btn" data-filter="incorrect" onclick="setNavFilter('incorrect')">Incorrect</button>
-                <button class="nav-filter-btn" data-filter="marked" onclick="setNavFilter('marked')">Marked</button>
+            <div class="nav-buttons">
+                <button class="active" data-filter="all" onclick="setNavFilter('all')">All</button>
+                <button data-filter="incorrect" onclick="setNavFilter('incorrect')">Incorrect</button>
+                <button data-filter="marked" onclick="setNavFilter('marked')">Marked</button>
             </div>
             <div id="questionNav"></div>
         </nav>
 
-        <main class="question-content" id="questionContent">
+        <section class="question-content" id="questionContent">
             <div class="loading">Loading questions...</div>
-        </main>
-    </div>
+        </section>
+    </main>
 
     <footer id="quiz-footer">
     </footer>
