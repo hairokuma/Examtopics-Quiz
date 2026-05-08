@@ -1,4 +1,7 @@
 from flask import Flask, render_template, request, jsonify, Response, stream_with_context
+from functools import wraps
+from logging.handlers import TimedRotatingFileHandler
+from werkzeug.middleware.proxy_fix import ProxyFix
 import sqlite3
 import json
 import logging
@@ -17,6 +20,9 @@ logging.basicConfig(level=logging.WARNING)
 logger = logging.getLogger(__name__)
 
 app = Flask(__name__)
+app.secret_key = os.environ.get('FLASK_SECRET_KEY', os.urandom(24))
+app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1)
+
 BASE_DIR = Path(__file__).resolve().parent
 DATABASE = BASE_DIR / 'data' / 'examtopics.db'
 
@@ -30,15 +36,14 @@ _SCANNER_PATHS = {
 
 _access_logger = logging.getLogger('access')
 _access_logger.setLevel(logging.INFO)
-_access_handler = logging.FileHandler(str(BASE_DIR / 'data' / 'access.log'))
+_access_handler = TimedRotatingFileHandler(
+    str(BASE_DIR / 'data' / 'access.log'), when='D', interval=1, backupCount=30
+)
 _access_handler.setFormatter(logging.Formatter('%(message)s'))
 _access_logger.addHandler(_access_handler)
 _access_logger.propagate = False
 
 def _get_client_ip():
-    forwarded_for = request.headers.get('X-Forwarded-For', '')
-    if forwarded_for:
-        return forwarded_for.split(',')[0].strip()
     return request.remote_addr
 
 @app.before_request
@@ -170,6 +175,33 @@ def init_db():
     conn.close()
 
 init_db()
+
+# ─── Security ────────────────────────────────────────────────────────────────
+
+_SCRAPER_PASSWORD = os.environ.get('SCRAPER_PASSWORD', '')
+
+def _require_scraper_auth(f):
+    @wraps(f)
+    def decorated(*args, **kwargs):
+        if not _SCRAPER_PASSWORD:
+            if os.environ.get('FLASK_ENV') == 'production':
+                return jsonify({'error': 'Scraper access disabled — set SCRAPER_PASSWORD'}), 403
+            return f(*args, **kwargs)
+        auth = request.authorization
+        if not auth or auth.password != _SCRAPER_PASSWORD:
+            return Response(
+                'Authentication required', 401,
+                {'WWW-Authenticate': 'Basic realm="Scraper"'}
+            )
+        return f(*args, **kwargs)
+    return decorated
+
+@app.after_request
+def set_security_headers(response):
+    response.headers['X-Frame-Options'] = 'DENY'
+    response.headers['X-Content-Type-Options'] = 'nosniff'
+    response.headers['Referrer-Policy'] = 'strict-origin-when-cross-origin'
+    return response
 
 # ─── Scrape Job Helpers ──────────────────────────────────────────────────────
 
@@ -732,6 +764,10 @@ def submit_answer():
         return jsonify({'error': 'question_id and user_answers are required'}), 400
     if not isinstance(data['question_id'], int) or not isinstance(data['user_answers'], list):
         return jsonify({'error': 'Invalid types for question_id or user_answers'}), 400
+    if len(data['user_answers']) > 10:
+        return jsonify({'error': 'Too many answers'}), 400
+    if not all(isinstance(a, str) and re.fullmatch(r'[A-Z]', a) for a in data['user_answers']):
+        return jsonify({'error': 'Invalid answer keys'}), 400
     question_id = data['question_id']
     user_answers = sorted(data['user_answers'])
 
@@ -813,10 +849,12 @@ def reset_progress(project_id):
 # ─── Scraper Routes ───────────────────────────────────────────────────────────
 
 @app.route('/scraper')
+@_require_scraper_auth
 def scraper_page():
     return render_template('scraper.html')
 
 @app.route('/api/scraper/publishers', methods=['GET'])
+@_require_scraper_auth
 def get_publishers():
     conn = get_db_connection()
     rows = conn.execute('SELECT name FROM publishers ORDER BY name').fetchall()
@@ -840,6 +878,7 @@ def get_publishers():
     return jsonify(result)
 
 @app.route('/api/scraper/publishers', methods=['POST'])
+@_require_scraper_auth
 def add_publisher():
     name = (request.json or {}).get('name', '').strip().lower()
     if not name:
@@ -851,12 +890,24 @@ def add_publisher():
     return jsonify({'name': name})
 
 @app.route('/api/scraper/start_discovery', methods=['POST'])
+@_require_scraper_auth
 def start_discovery():
-    data = request.json
+    data = request.json or {}
     publisher = data.get('publisher', '').strip()
-    delay = float(data.get('delay', 1.5))
     if not publisher:
         return jsonify({'error': 'publisher required'}), 400
+    if not re.fullmatch(r'[a-z0-9-]+', publisher):
+        return jsonify({'error': 'Invalid publisher name'}), 400
+    delay = max(0.5, min(float(data.get('delay', 1.5)), 10.0))
+
+    conn = get_db_connection()
+    running = conn.execute(
+        "SELECT id FROM scrape_jobs WHERE job_type='url_discovery' AND publisher=? AND status='running'",
+        (publisher,)
+    ).fetchone()
+    conn.close()
+    if running:
+        return jsonify({'error': 'A discovery job is already running for this publisher'}), 409
 
     job_id = str(uuid.uuid4())
     _create_job(job_id, 'url_discovery', publisher=publisher)
@@ -864,6 +915,7 @@ def start_discovery():
     return jsonify({'job_id': job_id})
 
 @app.route('/api/scraper/exams/<publisher>')
+@_require_scraper_auth
 def get_exams(publisher):
     conn = get_db_connection()
     rows = conn.execute('''
@@ -902,10 +954,13 @@ def get_exams(publisher):
     return jsonify(exams)
 
 @app.route('/api/scraper/fetch_project_info', methods=['POST'])
+@_require_scraper_auth
 def fetch_project_info():
-    link = request.json.get('link', '').strip()
+    link = (request.json or {}).get('link', '').strip()
     if not link:
         return jsonify({'error': 'link required'}), 400
+    if not link.startswith('https://www.examtopics.com/'):
+        return jsonify({'error': 'Only examtopics.com URLs are allowed'}), 400
 
     try:
         resp = http_client.get(link, timeout=15, headers={'User-Agent': 'Mozilla/5.0'})
@@ -938,6 +993,7 @@ def fetch_project_info():
         return jsonify({'error': 'Failed to fetch project info'}), 500
 
 @app.route('/api/scraper/create_project', methods=['POST'])
+@_require_scraper_auth
 def create_project():
     data = request.json
     name = data.get('name', '').strip()
@@ -959,14 +1015,25 @@ def create_project():
     return jsonify({'id': project_id, 'name': name})
 
 @app.route('/api/scraper/start_scrape', methods=['POST'])
+@_require_scraper_auth
 def start_scrape():
-    data = request.json
+    data = request.json or {}
     project_id = data.get('project_id')
     exam_name = data.get('exam_name', '').strip()
     publisher = data.get('publisher', '').strip()
-    delay = float(data.get('delay', 1.0))
     if not all([project_id, exam_name, publisher]):
         return jsonify({'error': 'project_id, exam_name, publisher required'}), 400
+    delay = max(0.5, min(float(data.get('delay', 1.0)), 10.0))
+
+    conn = get_db_connection()
+    running = conn.execute(
+        "SELECT id FROM scrape_jobs WHERE job_type='question_scrape' AND project_id=? AND status='running'",
+        (project_id,)
+    ).fetchone()
+    conn.close()
+    if running:
+        return jsonify({'error': 'A scrape job is already running for this project'}), 409
+
     job_id = str(uuid.uuid4())
     _create_job(job_id, 'question_scrape', publisher=publisher, project_id=project_id, exam_name=exam_name)
     threading.Thread(
@@ -977,6 +1044,7 @@ def start_scrape():
     return jsonify({'job_id': job_id})
 
 @app.route('/api/scraper/job/<job_id>')
+@_require_scraper_auth
 def get_job_status(job_id):
     job = _get_job(job_id)
     if not job:
@@ -984,6 +1052,7 @@ def get_job_status(job_id):
     return jsonify(job)
 
 @app.route('/api/scraper/running_jobs')
+@_require_scraper_auth
 def get_running_jobs():
     conn = get_db_connection()
     jobs = conn.execute(
@@ -994,6 +1063,7 @@ def get_running_jobs():
     return jsonify([dict(j) for j in jobs])
 
 @app.route('/api/scraper/stream/<job_id>')
+@_require_scraper_auth
 def stream_job(job_id):
     def generate():
         last_log_idx = 0

@@ -4,12 +4,12 @@ services:
   examtopics-quiz:
     build: .
     container_name: examtopics-quiz
-    working_dir: /app
     environment:
-      - FLASK_ENV=development
+      - FLASK_ENV=production
+      - FLASK_SECRET_KEY=${FLASK_SECRET_KEY:?Set FLASK_SECRET_KEY in .env}
+      - SCRAPER_PASSWORD=${SCRAPER_PASSWORD:?Set SCRAPER_PASSWORD in .env}
     ports:
       - '5012:5000'
     volumes:
-      - ./app:/app
       - ./data:/app/data
     restart: unless-stopped

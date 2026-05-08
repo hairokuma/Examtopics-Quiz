@@ -27,13 +27,24 @@ function processTextWithImages(text) {
     if (!text) return '';
     const imageUrlPattern = /(https?:\/\/[^\s<>"]+?\.(jpg|jpeg|png|gif|bmp|webp|svg)(\?[^\s<>"]*)?)/gi;
     const markdownImagePattern = /!\[([^\]]*)\]\(([^)]+)\)/g;
+    const images = [];
+
+    // Extract patterns into safe img HTML, replacing with indexed tokens
     text = text.replace(markdownImagePattern, (match, alt, url) => {
-        return `<div class="embedded-image"><img src="${url}" alt="${alt}" /></div>`;
+        const i = images.length;
+        images.push(`<div class="embedded-image"><img src="${escapeHtml(url)}" alt="${escapeHtml(alt)}" /></div>`);
+        return `\x00${i}\x00`;
     });
     text = text.replace(imageUrlPattern, (match) => {
-        return `<div class="embedded-image"><img src="${match}" alt="Question image" /></div>`;
+        const i = images.length;
+        images.push(`<div class="embedded-image"><img src="${escapeHtml(match)}" alt="Question image" /></div>`);
+        return `\x00${i}\x00`;
     });
-    return text;
+
+    // Escape all non-image text, then splice images back in
+    return text.split(/\x00(\d+)\x00/).map((part, i) =>
+        i % 2 === 0 ? escapeHtml(part) : images[parseInt(part)]
+    ).join('');
 }
 
 function escapeRegex(string) {

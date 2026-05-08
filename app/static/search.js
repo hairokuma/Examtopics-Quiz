@@ -101,7 +101,7 @@ function displayResults(results, query) {
         <div class="search-result-item">
           <div class="result-header" style="display: ${focusModeActive ? 'none' : 'block'}">
               <div class="result-meta">
-                  <span class="result-project">${result.project_name}</span>
+                  <span class="result-project">${escapeHtml(result.project_name)}</span>
                   Topic ${result.topic_id} - Question ${result.question_id}
               </div>
               <a href="/quiz/${result.project_id}/question/${result.id}" class="btn btn-primary">

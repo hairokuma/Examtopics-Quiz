@@ -138,6 +138,7 @@ function showQuestion(index) {
     const answerKeys = Object.keys(question.answers).sort();
     
     answerKeys.forEach(key => {
+        if (!/^[A-Z]$/.test(key)) return;
         const processedAnswerText = processTextWithImages(question.answers[key]);
         answersHTML += `
             <label class="answer-option" for="answer-${key}">
