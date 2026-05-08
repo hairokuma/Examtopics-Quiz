@@ -20,6 +20,46 @@ app = Flask(__name__)
 BASE_DIR = Path(__file__).resolve().parent
 DATABASE = BASE_DIR / 'data' / 'examtopics.db'
 
+# ─── Access / Security Logging ───────────────────────────────────────────────
+
+_SCANNER_PATHS = {
+    '/build', '/backend', '/wordpress', '/wp-admin', '/wp-login',
+    '/phpMyAdmin', '/phpmyadmin', '/admin', '/shell', '/.env', '/.git',
+    '/config', '/setup', '/install', '/xmlrpc.php', '/cgi-bin',
+}
+
+_access_logger = logging.getLogger('access')
+_access_logger.setLevel(logging.INFO)
+_access_handler = logging.FileHandler(str(BASE_DIR / 'data' / 'access.log'))
+_access_handler.setFormatter(logging.Formatter('%(message)s'))
+_access_logger.addHandler(_access_handler)
+_access_logger.propagate = False
+
+def _get_client_ip():
+    forwarded_for = request.headers.get('X-Forwarded-For', '')
+    if forwarded_for:
+        return forwarded_for.split(',')[0].strip()
+    return request.remote_addr
+
+@app.before_request
+def log_request():
+    ip = _get_client_ip()
+    path = request.path
+    is_scanner = any(path == p or path.startswith(p + '/') for p in _SCANNER_PATHS)
+    entry = {
+        'time': datetime.now().isoformat(),
+        'ip': ip,
+        'method': request.method,
+        'path': path,
+        'ua': request.headers.get('User-Agent', ''),
+    }
+    if is_scanner:
+        entry['flag'] = 'SCANNER'
+    _access_logger.log(
+        logging.WARNING if is_scanner else logging.INFO,
+        json.dumps(entry, separators=(',', ':'))
+    )
+
 def get_db_connection():
     conn = sqlite3.connect(str(DATABASE))
     conn.row_factory = sqlite3.Row
