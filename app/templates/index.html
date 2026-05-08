@@ -18,8 +18,11 @@
             <div class="grid">
                 {% for project in projects %}
                 <div class="card">
-                    <h2>{{ project.name }} <a href="{{ project.link }}" target="_blank">🔗</a> <a
-                            href="/search/{{ project.id }}" title="Search in this project">🔍</a></h2>
+                    <div class="header">
+                        <h2>{{ project.name }} </h2>
+                        <a href="{{ project.link }}" target="_blank">🔗</a>
+                        <a href="/search/{{ project.id }}" title="Search in this project">🔍</a>
+                    </div>
                     <p>{{ project.description }}</p>
                     <mark>{{project.question_count}} imported · {{ project.questions or '?' }} on ExamTopics | Progress:
                         {{project.progress}}/{{project.question_count}}</mark>
@@ -34,6 +37,9 @@
     <footer>
         <a href="/search" class="btn btn-primary">
             🔍 Search Questions
+        </a>
+        <a href="/admin" class="btn btn-primary">
+            ✎ Admin
         </a>
         <a href="/scraper" class="btn btn-primary">
             ⚙ Scraper

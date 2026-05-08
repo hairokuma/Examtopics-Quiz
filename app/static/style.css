@@ -30,6 +30,11 @@ mark {
     color: #000;
     font-weight: 500;
 }
+a {
+    font-size: 16px;
+    text-decoration: none;
+    color: #fff;
+}
 /* ========================================
    SCROLLBAR
 ======================================== */
@@ -171,7 +176,7 @@ nav button {
     background: #000;
     border: none;
     border-right: 1px solid #333;
-    color: #555;
+    color: #ccc;
     font-size: 10px;
     text-transform: uppercase;
     letter-spacing: 0.3px;
@@ -184,6 +189,8 @@ nav button {
 nav button:last-child  { border-right: none; }
 nav button:hover       { color: #fff; background: #1a1a1a; }
 nav button.active      { color: #fff; background: #1a1a1a; }
+nav button:disabled,
+nav button[disabled]  { color: #666; cursor: not-allowed; }
 
 nav .item {
     background: #000;
@@ -259,13 +266,6 @@ footer {
     font-weight: 500;
 }
 
-.card h2 a {
-    font-size: 16px;
-    text-decoration: none;
-    margin-left: 8px;
-    color: #fff;
-}
-
 .card p {
     color: #999;
     line-height: 1.4;
@@ -279,8 +279,17 @@ footer {
     align-self: flex-start;
 }
 
+.header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 8px;
+}
+.header > :first-child { flex: 1; }
+.header > :last-child { display: flex; gap: 4px; flex-shrink: 0; }
+
 /* ========================================
-   BUTTONS
+   BUTTONS todo: 
 ======================================== */
 .btn,
 .btn-sm {
@@ -323,7 +332,7 @@ footer {
 .btn-success:hover  { background: #000; color: #fff; }
 
 /* Promotes a .btn-sm to a high-contrast white-bordered button */
-.btn-sm.primary     { border-color: #fff; }
+.btn-sm.primary,.btn-primary     { border-color: #fff; }
 
 .btn-disabled,
 .btn:disabled,
@@ -394,12 +403,24 @@ dialog h3 {
     font-family: inherit;
     width: 100%;
 }
-
 .form-row textarea { height: 60px; resize: vertical; }
 
 .form-row input:focus,
 .form-row textarea:focus { outline: none; border-color: #666; }
 
+input[type="checkbox"] {
+    width: 16px;
+    height: 16px;
+    cursor: pointer;
+}
+.answer-row {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+.answer-row input[type="text"] {
+    flex: 1;
+}
 /* ========================================
    PROGRESS BAR (scraper)
 ======================================== */
@@ -458,29 +479,10 @@ dialog h3 {
 /* ========================================
    QUIZ — QUESTION & ANSWERS
 ======================================== */
-.question-content {
-    background: #000;
-    flex: 1;
-    overflow-y: auto;
-    display: flex;
-    flex-direction: column;
-}
-
 .question-content > * { padding: .5rem; }
-
-.question-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
+.question-content .header {
     border-bottom: 1px solid #333;
-    height: 50px;
 }
-
-.question-header a {
-    text-decoration: none;
-    color: #fff;
-}
-
 .question-number {
     font-size: 12px;
     color: #fff;
@@ -489,32 +491,12 @@ dialog h3 {
     letter-spacing: 0.5px;
 }
 
-.question-text {
-    font-size: 16px;
-    line-height: 1.5;
-    color: #fff;
+.question-content p {
     white-space: pre-wrap;
 }
 
-.embedded-image {
-    text-align: center;
-    background: #000;
-    border: 1px solid #333;
-}
-
-.embedded-image img {
-    max-width: 100%;
-    height: auto;
-    cursor: pointer;
-    transition: opacity 0.2s;
-    display: block;
-}
-
-.embedded-image img:hover { opacity: 0.8; }
-
-.answer-option .embedded-image  { max-width: 300px; }
-.answer-text                    { display: inline-block; }
-.answers-container              { flex: 1; }
+/* .answer-text                    { display: inline-block; }
+.answers-container              { flex: 1; } */
 
 .answer-option {
     display: flex;
@@ -533,11 +515,7 @@ dialog h3 {
 .answer-option.correct-answer { background: #1a1a1a; border-color: #0f0; }
 .answer-option.wrong-answer  { background: #1a1a1a; border-color: #f00; }
 
-.answer-option input[type="checkbox"] {
-    width: 16px;
-    height: 16px;
-    cursor: pointer;
-}
+
 
 .answer-label {
     flex: 1;
@@ -558,18 +536,6 @@ dialog h3 {
     height: 60px;
     align-items: center;
 }
-
-.feedback {
-    font-weight: 500;
-    font-size: 14px;
-    border: 1px solid #333;
-    height: 50px;
-    display: flex;
-    align-items: center;
-}
-
-.feedback.correct   { background: #000; color: #fff; border-color: #4a4a4a; }
-.feedback.incorrect { background: #000; color: #fff; border-color: #666; }
 
 /* ========================================
    SEARCH

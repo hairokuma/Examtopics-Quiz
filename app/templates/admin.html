@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Admin - Quiz Learning App</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <link rel="icon" type="image/png" href="{{ url_for('static', filename='favicon.png') }}">
+</head>
+
+<body>
+    <header>
+        <button id="toggleSidebar" title="Toggle project list">☰</button>
+        <h1>Admin</h1>
+        <button title="Back to projects" onclick="window.location.href='/'">←</button>
+    </header>
+
+    <main>
+        <!-- Projects Sidebar -->
+        <nav id="projectPanel">
+            <h3>Projects</h3>
+            <div class="nav-buttons">
+                <button onclick="openProjectDialog(null)" title="New project">+ Project</button>
+                <button id="addQuestionBtn" onclick="openQuestionDialog(null)" disabled>+ Question</button>
+            </div>
+            <div id="projectItems">
+                <div class="placeholder">Loading...</div>
+            </div>
+        </nav>
+
+        <!-- Questions Section -->
+        <section>
+            <div id="questionContent" class="grid">
+                <div class="placeholder">Select a project to manage questions</div>
+            </div>
+        </section>
+    </main>
+
+    <footer id="adminFooter" style="display: none;">
+        <span id="footerProjectName"></span>
+        <div>
+            <button class="btn-sm" onclick="openProjectDialog(currentProject)">Edit</button>
+            <button class="btn-sm" onclick="confirmDeleteProject()">Delete</button>
+            <button class="btn-sm btn-primary" onclick="deletePublisher()">Delete Publisher</button>
+        </div>
+    </footer>
+
+    <!-- Project Dialog (create / edit) -->
+    <dialog id="projectDialog">
+        <h3 id="projectDialogTitle">New Project</h3>
+        <div class="form-row">
+            <label>Name</label>
+            <input type="text" id="pdName" placeholder="Microsoft AZ-104 Azure Administrator">
+        </div>
+        <div class="form-row">
+            <label>Description</label>
+            <textarea id="pdDescription" placeholder="Short description..."></textarea>
+        </div>
+        <div class="form-row-group">
+            <div class="form-row">
+                <label>Link</label>
+                <input type="url" id="pdLink" placeholder="https://examtopics.com/exams/...">
+            </div>
+            <div class="form-row">
+                <label>Exam Name</label>
+                <input type="text" id="pdExamName" placeholder="az-104">
+            </div>
+        </div>
+        <div class="form-row-group">
+            <div class="form-row">
+                <label>Question Count</label>
+                <input type="number" id="pdQuestions" placeholder="0">
+            </div>
+            <div class="form-row">
+                <label>Last Updated</label>
+                <input type="text" id="pdLastUpdated" placeholder="Jan. 5, 2026">
+            </div>
+        </div>
+        <div class="modal-actions">
+            <button class="btn-sm" onclick="document.getElementById('projectDialog').close()">Cancel</button>
+            <button class="btn-sm primary" onclick="saveProject()">Save</button>
+        </div>
+    </dialog>
+
+    <!-- Question Dialog (create / edit) -->
+    <dialog id="questionDialog">
+        <h3 id="questionDialogTitle">New Question</h3>
+        <div class="form-row-group">
+            <div class="form-row">
+                <label>Topic ID</label>
+                <input type="number" id="qdTopicId" placeholder="1">
+            </div>
+            <div class="form-row">
+                <label>Question ID</label>
+                <input type="number" id="qdQuestionId" placeholder="1">
+            </div>
+        </div>
+        <div class="form-row">
+            <label>Question Text</label>
+            <textarea id="qdQuestionText" placeholder="Question text..." style="height: 120px;"></textarea>
+        </div>
+        <div class="form-row">
+            <div class="header">
+                <label>Answers</label>
+                <button type="button" class="btn-sm" onclick="addAnswerRow()">+ Option</button>
+            </div>
+            <div id="qdAnswersContainer" class="form-row"></div>
+        </div>
+        <div class="modal-actions">
+            <button class="btn-sm" onclick="document.getElementById('questionDialog').close()">Cancel</button>
+            <button class="btn-sm primary" onclick="saveQuestion()">Save</button>
+        </div>
+    </dialog>
+
+    <!-- Confirm Delete Dialog -->
+    <dialog id="confirmDialog">
+        <h3>Confirm Delete</h3>
+        <p id="confirmMessage"></p>
+        <div class="modal-actions">
+            <button class="btn-sm" onclick="document.getElementById('confirmDialog').close()">Cancel</button>
+            <button class="btn-sm primary" id="confirmBtn">Delete</button>
+        </div>
+    </dialog>
+
+    <script src="{{ url_for('static', filename='utils.js') }}"></script>
+    <script src="{{ url_for('static', filename='admin.js') }}"></script>
+</body>
+
+</html>

@@ -76,7 +76,7 @@ function renderExams(publisher, exams) {
 
         return;
     }
-    grid.innerHTML = `<div class="grid">${exams.map(e => examCard(publisher, e)).join('')}</div>`;
+    grid.innerHTML = exams.map(e => examCard(publisher, e)).join('');
     grid.querySelectorAll('[data-action]').forEach(el => {
         el.addEventListener('click', () => {
             const { action, publisher: pub, exam, projectId } = el.dataset;
@@ -94,7 +94,10 @@ function examCard(publisher, e) {
 
     return `
         <div class="card" id="exam-${examAttr}">
-            <h2>${escapeHtml(e.exam_name)}</h2>
+            <div class="header">
+                <h2>${escapeHtml(e.exam_name)}</h2>
+                <a href="https://www.examtopics.com/exams/${publisher}/${e.exam_name}/view/" target="_blank">🔗</a>
+            </div>
             <p>${e.url_count} URLs${hasProject ? ` · ${escapeHtml(e.project_name)}` : ''}</p>
             ${hasProject && e.imported_question_count > 0 ? `
                 <mark>
@@ -186,9 +189,9 @@ function startProgressStream(job_id, job_type, publisher, label, onComplete) {
             _refreshDiscoverPublisherBtn();
             const statusText = data.status === 'completed' ? 'Done' : 'Failed';
             document.getElementById('progressLabel').textContent = `${label} — ${statusText}`;
-            setTimeout(() => {
-                document.getElementById('progressBar').style.display = 'none';
-            }, 5000);
+            // setTimeout(() => {
+            //     document.getElementById('progressBar').style.display = 'none';
+            // }, 5000);
             if (onComplete) onComplete();
         }
     };
@@ -260,7 +263,7 @@ function openCreateModal(publisher, examName) {
     pendingPublisher = publisher;
     pendingExamName = examName;
     document.getElementById('modalExamName').textContent = examName;
-    document.getElementById('projectLink').value = `https://www.examtopics.com/${publisher}/${examName}/view/`;
+    document.getElementById('projectLink').value = `https://www.examtopics.com/exams/${publisher}/${examName}/view/`;
     document.getElementById('projectName').value = `${publisher} ${examName}`;
     document.getElementById('projectDescription').value = '';
     document.getElementById('projectQuestions').value = p.url_count || '';
@@ -311,7 +314,6 @@ async function submitCreateProject() {
                 description: document.getElementById('projectDescription').value.trim(),
                 questions: parseInt(document.getElementById('projectQuestions').value) || null,
                 last_updated_on: document.getElementById('projectLastUpdated').value.trim(),
-                publisher: pendingPublisher,
                 exam_name: pendingExamName
             })
         });

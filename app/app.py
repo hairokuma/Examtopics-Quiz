@@ -30,7 +30,7 @@ DATABASE = BASE_DIR / 'data' / 'examtopics.db'
 
 _SCANNER_PATHS = {
     '/build', '/backend', '/wordpress', '/wp-admin', '/wp-login',
-    '/phpMyAdmin', '/phpmyadmin', '/admin', '/shell', '/.env', '/.git',
+    '/phpMyAdmin', '/phpmyadmin', '/shell', '/.env', '/.git',
     '/config', '/setup', '/install', '/xmlrpc.php', '/cgi-bin',
 }
 
@@ -76,6 +76,28 @@ def _migrate_table(conn, table, columns):
         if col not in existing:
             conn.execute(f'ALTER TABLE {table} ADD COLUMN {col} {definition}')
 
+def _migrate_drop_publisher_from_projects(conn):
+    cols = {row[1] for row in conn.execute('PRAGMA table_info(projects)').fetchall()}
+    if 'publisher' not in cols:
+        return
+    sqlite_ver = tuple(int(x) for x in sqlite3.sqlite_version.split('.'))
+    if sqlite_ver >= (3, 35, 0):
+        conn.execute('ALTER TABLE projects DROP COLUMN publisher')
+    else:
+        conn.executescript('''
+            CREATE TABLE projects_new (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                name TEXT NOT NULL, description TEXT, questions INTEGER,
+                link TEXT, exam_name TEXT, created_at TEXT, updated_at TEXT, last_updated_on TEXT
+            );
+            INSERT INTO projects_new
+                SELECT id, name, description, questions, link, exam_name, created_at, updated_at, last_updated_on
+                FROM projects;
+            DROP TABLE projects;
+            ALTER TABLE projects_new RENAME TO projects;
+        ''')
+    conn.commit()
+
 def init_db():
     conn = get_db_connection()
     conn.executescript('''
@@ -85,7 +107,6 @@ def init_db():
             description TEXT,
             questions INTEGER,
             link TEXT,
-            publisher TEXT,
             exam_name TEXT,
             created_at TEXT,
             updated_at TEXT,
@@ -103,24 +124,6 @@ def init_db():
             user_answer_keys TEXT,
             is_correct INTEGER,
             answered_at TEXT,
-            is_marked INTEGER DEFAULT 0,
-            created_at TEXT,
-            updated_at TEXT,
-            source_url TEXT,
-            FOREIGN KEY (project_id) REFERENCES projects (id)
-        );
-
-        CREATE TABLE IF NOT EXISTS questions_scraped (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            project_id INTEGER NOT NULL,
-            topic_id INTEGER,
-            question_id INTEGER,
-            question_text TEXT,
-            answer_object TEXT,
-            correct_answer_keys TEXT,
-            correct_answer_text TEXT,
-            user_answer_keys TEXT,
-            is_correct INTEGER DEFAULT 0,
             is_marked INTEGER DEFAULT 0,
             created_at TEXT,
             updated_at TEXT,
@@ -165,10 +168,11 @@ def init_db():
         ('description', 'TEXT'),
         ('questions', 'INTEGER'),
         ('link', 'TEXT'),
-        ('publisher', 'TEXT'),
         ('exam_name', 'TEXT'),
         ('last_updated_on', 'TEXT'),
+        ('publisher_id', 'INTEGER REFERENCES publishers(id)'),
     ])
+    _migrate_drop_publisher_from_projects(conn)
     _migrate_table(conn, 'questions', [('source_url', 'TEXT')])
 
     conn.commit()
@@ -278,9 +282,9 @@ def _extract_urls_from_page(soup):
 def _sort_urls_by_exam(urls):
     exam_urls = {}
     for url in urls:
-        m = re.search(r'-exam-([a-z0-9-]+?)-topic-', url)
+        m = re.search(r'-exam-([a-z0-9_-]+?)-topic-', url)
         if not m:
-            m = re.search(r'-exam-([a-z0-9-]+)', url)
+            m = re.search(r'-exam-([a-z0-9_-]+)', url)
         exam_name = m.group(1) if m else 'unknown'
         exam_urls.setdefault(exam_name, []).append(url)
 
@@ -389,30 +393,28 @@ def _scrape_question(url, session, project_id):
 def _save_scraped_question(data):
     conn = get_db_connection()
     existing = conn.execute(
-        'SELECT id FROM questions_scraped WHERE project_id = ? AND source_url = ?',
+        'SELECT id FROM questions WHERE project_id = ? AND source_url = ?',
         (data['project_id'], data['source_url'])
     ).fetchone()
 
     if existing:
         conn.execute('''
-            UPDATE questions_scraped
+            UPDATE questions
             SET topic_id=?, question_id=?, question_text=?, answer_object=?,
-                correct_answer_keys=?, correct_answer_text=?, updated_at=?
+                correct_answer_keys=?, updated_at=?
             WHERE id=?
         ''', (data['topic_id'], data['question_id'], data['question_text'],
               data['answer_object'], data['correct_answer_keys'],
-              data['correct_answer_text'], data['updated_at'], existing['id']))
+              data['updated_at'], existing['id']))
     else:
         conn.execute('''
-            INSERT INTO questions_scraped
+            INSERT INTO questions
             (project_id, topic_id, question_id, question_text, answer_object,
-             correct_answer_keys, correct_answer_text, user_answer_keys, is_correct,
-             is_marked, created_at, updated_at, source_url)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+             correct_answer_keys, is_marked, created_at, updated_at, source_url)
+            VALUES (?, ?, ?, ?, ?, ?, 0, ?, ?, ?)
         ''', (data['project_id'], data['topic_id'], data['question_id'],
               data['question_text'], data['answer_object'], data['correct_answer_keys'],
-              data['correct_answer_text'], data['user_answer_keys'], data['is_correct'],
-              data['is_marked'], data['created_at'], data['updated_at'], data['source_url']))
+              data['created_at'], data['updated_at'], data['source_url']))
 
     conn.commit()
     conn.close()
@@ -531,35 +533,19 @@ def _run_scrape_questions(job_id, project_id, exam_name, publisher, delay):
 
         now = datetime.now().isoformat()
         conn = get_db_connection()
-        scraped = conn.execute(
-            'SELECT * FROM questions_scraped WHERE project_id = ?', (project_id,)
-        ).fetchall()
-        imported = 0
-        for q in scraped:
-            if not conn.execute(
-                'SELECT id FROM questions WHERE project_id = ? AND source_url = ?',
-                (project_id, q['source_url'])
-            ).fetchone():
-                conn.execute('''
-                    INSERT INTO questions
-                    (project_id, topic_id, question_id, question_text, answer_object,
-                     correct_answer_keys, is_marked, created_at, updated_at, source_url)
-                    VALUES (?, ?, ?, ?, ?, ?, 0, ?, ?, ?)
-                ''', (q['project_id'], q['topic_id'], q['question_id'], q['question_text'],
-                      q['answer_object'], q['correct_answer_keys'], now, now, q['source_url']))
-                imported += 1
         count = conn.execute(
             'SELECT COUNT(*) FROM questions WHERE project_id = ?', (project_id,)
         ).fetchone()[0]
+        pub = conn.execute('SELECT id FROM publishers WHERE name = ?', (publisher,)).fetchone()
         conn.execute(
-            'UPDATE projects SET questions = ?, updated_at = ? WHERE id = ?',
-            (count, now, project_id)
+            'UPDATE projects SET questions = ?, publisher_id = ?, updated_at = ? WHERE id = ?',
+            (count, pub['id'] if pub else None, now, project_id)
         )
         conn.commit()
         conn.close()
 
         _update_job(job_id, status='completed')
-        _log_job(job_id, f'Done! {success} scraped, {fail} failed. {imported} imported ({count} total in quiz).')
+        _log_job(job_id, f'Done! {success} scraped, {fail} failed. {count} total in quiz.')
 
     except Exception as e:
         _update_job(job_id, status='failed')
@@ -927,16 +913,12 @@ def get_exams(publisher):
     exams = []
     for row in rows:
         project = conn.execute(
-            'SELECT id, name FROM projects WHERE publisher = ? AND exam_name = ?',
-            (publisher, row['exam_name'])
+            'SELECT id, name FROM projects WHERE exam_name = ?',
+            (row['exam_name'],)
         ).fetchone()
 
-        scraped_q = 0
         imported_q = 0
         if project:
-            scraped_q = conn.execute(
-                'SELECT COUNT(*) FROM questions_scraped WHERE project_id = ?', (project['id'],)
-            ).fetchone()[0]
             imported_q = conn.execute(
                 'SELECT COUNT(*) FROM questions WHERE project_id = ?', (project['id'],)
             ).fetchone()[0]
@@ -947,7 +929,6 @@ def get_exams(publisher):
             'scraped_url_count': row['scraped_url_count'] or 0,
             'project_id': project['id'] if project else None,
             'project_name': project['name'] if project else None,
-            'scraped_question_count': scraped_q,
             'imported_question_count': imported_q,
         })
     conn.close()
@@ -1003,12 +984,12 @@ def create_project():
     now = datetime.now().isoformat()
     conn = get_db_connection()
     cursor = conn.execute('''
-        INSERT INTO projects (name, description, questions, link, publisher, exam_name,
-                              last_updated_on, created_at, updated_at)
+        INSERT INTO projects (name, description, questions, link, exam_name,
+                              last_updated_on, publisher_id, created_at, updated_at)
         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
     ''', (name, data.get('description', ''), data.get('questions'),
-          data.get('link', ''), data.get('publisher', ''), data.get('exam_name', ''),
-          data.get('last_updated_on', ''), now, now))
+          data.get('link', ''), data.get('exam_name', ''),
+          data.get('last_updated_on', ''), data.get('publisher_id'), now, now))
     project_id = cursor.lastrowid
     conn.commit()
     conn.close()
@@ -1089,6 +1070,201 @@ def stream_job(job_id):
         headers={'Cache-Control': 'no-cache', 'X-Accel-Buffering': 'no'}
     )
 
+
+# ─── Admin Routes ────────────────────────────────────────────────────────────
+
+@app.route('/admin')
+@_require_scraper_auth
+def admin_page():
+    return render_template('admin.html')
+
+@app.route('/api/admin/projects')
+@_require_scraper_auth
+def admin_get_projects():
+    conn = get_db_connection()
+    projects = conn.execute('''
+        SELECT p.*, COUNT(q.id) as question_count
+        FROM projects p
+        LEFT JOIN questions q ON q.project_id = p.id
+        GROUP BY p.id
+        ORDER BY p.name
+    ''').fetchall()
+    conn.close()
+    return jsonify([dict(p) for p in projects])
+
+@app.route('/api/admin/projects', methods=['POST'])
+@_require_scraper_auth
+def admin_create_project():
+    data = request.json or {}
+    name = data.get('name', '').strip()
+    if not name:
+        return jsonify({'error': 'name required'}), 400
+    now = datetime.now().isoformat()
+    conn = get_db_connection()
+    cursor = conn.execute('''
+        INSERT INTO projects (name, description, questions, link, exam_name,
+                              last_updated_on, publisher_id, created_at, updated_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+    ''', (name, data.get('description', ''), data.get('questions'),
+          data.get('link', ''), data.get('exam_name', ''),
+          data.get('last_updated_on', ''), data.get('publisher_id'), now, now))
+    project_id = cursor.lastrowid
+    conn.commit()
+    conn.close()
+    return jsonify({'id': project_id, 'name': name})
+
+@app.route('/api/admin/projects/<int:project_id>', methods=['PUT'])
+@_require_scraper_auth
+def admin_update_project(project_id):
+    data = request.json or {}
+    name = data.get('name', '').strip()
+    if not name:
+        return jsonify({'error': 'name required'}), 400
+    now = datetime.now().isoformat()
+    conn = get_db_connection()
+    base = (name, data.get('description', ''), data.get('questions'),
+            data.get('link', ''), data.get('exam_name', ''),
+            data.get('last_updated_on', ''), now)
+    if 'publisher_id' in data:
+        conn.execute('''
+            UPDATE projects SET name=?, description=?, questions=?, link=?, exam_name=?,
+                last_updated_on=?, updated_at=?, publisher_id=?
+            WHERE id=?
+        ''', base + (data['publisher_id'], project_id))
+    else:
+        conn.execute('''
+            UPDATE projects SET name=?, description=?, questions=?, link=?, exam_name=?,
+                last_updated_on=?, updated_at=?
+            WHERE id=?
+        ''', base + (project_id,))
+    conn.commit()
+    conn.close()
+    return jsonify({'success': True})
+
+@app.route('/api/admin/projects/<int:project_id>', methods=['DELETE'])
+@_require_scraper_auth
+def admin_delete_project(project_id):
+    conn = get_db_connection()
+    conn.execute('DELETE FROM questions WHERE project_id = ?', (project_id,))
+    conn.execute('DELETE FROM projects WHERE id = ?', (project_id,))
+    conn.commit()
+    conn.close()
+    return jsonify({'success': True})
+
+@app.route('/api/admin/projects/<int:project_id>/questions')
+@_require_scraper_auth
+def admin_get_questions(project_id):
+    conn = get_db_connection()
+    questions = conn.execute('''
+        SELECT id, topic_id, question_id, question_text, answer_object, correct_answer_keys, source_url
+        FROM questions WHERE project_id = ? ORDER BY topic_id, question_id
+    ''', (project_id,)).fetchall()
+    conn.close()
+    return jsonify([dict(q) for q in questions])
+
+@app.route('/api/admin/projects/<int:project_id>/questions', methods=['POST'])
+@_require_scraper_auth
+def admin_create_question(project_id):
+    data = request.json or {}
+    try:
+        answer_obj = json.loads(data.get('answer_object', '{}'))
+        correct_keys = json.loads(data.get('correct_answer_keys', '[]'))
+        if not isinstance(answer_obj, dict) or not isinstance(correct_keys, list):
+            raise ValueError
+    except (json.JSONDecodeError, ValueError):
+        return jsonify({'error': 'answer_object must be a JSON object, correct_answer_keys must be a JSON array'}), 400
+    now = datetime.now().isoformat()
+    conn = get_db_connection()
+    cursor = conn.execute('''
+        INSERT INTO questions (project_id, topic_id, question_id, question_text, answer_object,
+            correct_answer_keys, user_answer_keys, is_correct, is_marked, created_at, updated_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, 0, 0, ?, ?)
+    ''', (project_id, data.get('topic_id'), data.get('question_id'),
+          data.get('question_text', ''), json.dumps(answer_obj), json.dumps(correct_keys),
+          json.dumps([]), now, now))
+    question_id = cursor.lastrowid
+    conn.commit()
+    conn.close()
+    return jsonify({'id': question_id})
+
+@app.route('/api/admin/questions/<int:question_id>', methods=['PUT'])
+@_require_scraper_auth
+def admin_update_question(question_id):
+    data = request.json or {}
+    try:
+        answer_obj = json.loads(data.get('answer_object', '{}'))
+        correct_keys = json.loads(data.get('correct_answer_keys', '[]'))
+        if not isinstance(answer_obj, dict) or not isinstance(correct_keys, list):
+            raise ValueError
+    except (json.JSONDecodeError, ValueError):
+        return jsonify({'error': 'answer_object must be a JSON object, correct_answer_keys must be a JSON array'}), 400
+    now = datetime.now().isoformat()
+    conn = get_db_connection()
+    conn.execute('''
+        UPDATE questions SET topic_id=?, question_id=?, question_text=?, answer_object=?,
+            correct_answer_keys=?, updated_at=?
+        WHERE id=?
+    ''', (data.get('topic_id'), data.get('question_id'), data.get('question_text', ''),
+          json.dumps(answer_obj), json.dumps(correct_keys), now, question_id))
+    conn.commit()
+    conn.close()
+    return jsonify({'success': True})
+
+@app.route('/api/admin/questions/<int:question_id>', methods=['DELETE'])
+@_require_scraper_auth
+def admin_delete_question(question_id):
+    conn = get_db_connection()
+    conn.execute('DELETE FROM questions WHERE id = ?', (question_id,))
+    conn.commit()
+    conn.close()
+    return jsonify({'success': True})
+
+@app.route('/api/admin/projects/<int:project_id>/publisher')
+@_require_scraper_auth
+def admin_get_project_publisher(project_id):
+    conn = get_db_connection()
+    row = conn.execute(
+        'SELECT pu.id as publisher_id, pu.name as publisher, '
+        'COUNT(DISTINCT p2.id) as project_count, '
+        'COUNT(DISTINCT q.id) as question_count, '
+        'COUNT(DISTINCT du.id) as url_count, '
+        'COUNT(DISTINCT du.exam_name) as exam_count '
+        'FROM projects p '
+        'JOIN publishers pu ON pu.id = p.publisher_id '
+        'LEFT JOIN projects p2 ON p2.publisher_id = pu.id '
+        'LEFT JOIN questions q ON q.project_id = p2.id '
+        'LEFT JOIN discovered_urls du ON du.publisher = pu.name '
+        'WHERE p.id = ?',
+        (project_id,)
+    ).fetchone()
+    if not row or not row['publisher']:
+        conn.close()
+        return jsonify({'error': 'No publisher linked to this project'}), 404
+    conn.close()
+    return jsonify(dict(row))
+
+@app.route('/api/admin/publishers/<publisher_name>', methods=['DELETE'])
+@_require_scraper_auth
+def admin_delete_publisher(publisher_name):
+    conn = get_db_connection()
+    pub = conn.execute('SELECT id FROM publishers WHERE name = ?', (publisher_name,)).fetchone()
+    if not pub:
+        conn.close()
+        return jsonify({'error': 'Publisher not found'}), 404
+
+    project_ids = [r['id'] for r in conn.execute(
+        'SELECT id FROM projects WHERE publisher_id = ?', (pub['id'],)
+    ).fetchall()]
+    if project_ids:
+        ph = ','.join('?' * len(project_ids))
+        conn.execute(f'DELETE FROM questions WHERE project_id IN ({ph})', project_ids)
+        conn.execute(f'DELETE FROM projects WHERE id IN ({ph})', project_ids)
+
+    conn.execute('DELETE FROM discovered_urls WHERE publisher = ?', (publisher_name,))
+    conn.execute('DELETE FROM publishers WHERE id = ?', (pub['id'],))
+    conn.commit()
+    conn.close()
+    return jsonify({'success': True})
 
 if __name__ == '__main__':
     app.run(debug=os.getenv('FLASK_DEBUG', 'false').lower() == 'true', host='0.0.0.0', port=5000)

@@ -32,12 +32,12 @@ function processTextWithImages(text) {
     // Extract patterns into safe img HTML, replacing with indexed tokens
     text = text.replace(markdownImagePattern, (match, alt, url) => {
         const i = images.length;
-        images.push(`<div class="embedded-image"><img src="${escapeHtml(url)}" alt="${escapeHtml(alt)}" /></div>`);
+        images.push(`<div><img src="${escapeHtml(url)}" alt="${escapeHtml(alt)}" /></div>`);
         return `\x00${i}\x00`;
     });
     text = text.replace(imageUrlPattern, (match) => {
         const i = images.length;
-        images.push(`<div class="embedded-image"><img src="${escapeHtml(match)}" alt="Question image" /></div>`);
+        images.push(`<div><img src="${escapeHtml(match)}" alt="Question image" /></div>`);
         return `\x00${i}\x00`;
     });
 

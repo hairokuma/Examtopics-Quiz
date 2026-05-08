@@ -153,7 +153,7 @@ function showQuestion(index) {
     });
     
     contentDiv.innerHTML = `
-        <div class="question-header">
+        <div class="header">
             <div class="question-number">Topic ${question.topic_id} - Question ${question.question_id} (${currentQuestionIndex + 1} of ${questions.length}) <a href="${safeUrl(question.source_url)}" target="_blank">🔗</a></div>
             <button id="mark-btn" class="btn btn-primary ${question.is_marked ? 'marked' : ''}" 
                 onclick="toggleMark(${question.id})">
@@ -161,7 +161,7 @@ function showQuestion(index) {
             </button>
         </div>
         
-        <div class="question-text">${processedQuestionText}</div>
+        <p>${processedQuestionText}</p>
         
         <div class="answers-container">
             ${answersHTML}
